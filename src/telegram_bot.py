@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from loguru import logger
 from telegram import Update
+from telegram.error import BadRequest
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 from src import BOT_NAME
@@ -106,4 +107,26 @@ class TerminalCheckTelegramBot:
             return
 
         for chunk in chunks:
-            await self.application.bot.send_message(chat_id=self.settings.chat_id, text=chunk)
+            await self._send_to_configured_chat(chunk)
+
+    async def _send_to_configured_chat(self, message: str) -> None:
+        try:
+            await self.application.bot.send_message(chat_id=self.settings.chat_id, text=message)
+            return
+        except BadRequest as exc:
+            if "chat not found" not in str(exc).lower():
+                raise
+
+        fallback_chat_id = await self._latest_update_chat_id()
+        if not fallback_chat_id:
+            raise BadRequest("chat not found and no recent Telegram update is available")
+
+        logger.warning("configured TELEGRAM_CHAT_ID was not found; sending to latest update chat")
+        await self.application.bot.send_message(chat_id=fallback_chat_id, text=message)
+
+    async def _latest_update_chat_id(self) -> str | None:
+        updates = await self.application.bot.get_updates(limit=20, timeout=0)
+        for update in reversed(updates):
+            if update.effective_chat and update.effective_chat.id:
+                return str(update.effective_chat.id)
+        return None

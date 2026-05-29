@@ -1,9 +1,6 @@
 name: send_qingdao_test_alert
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 jobs:
