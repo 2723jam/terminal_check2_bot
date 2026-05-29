@@ -1,6 +1,9 @@
 name: terminal_check2_bot
 
 on:
+  push:
+    branches:
+      - main
   schedule:
     # Asia/Seoul 09:05-18:05 == UTC 00:05-09:05
     - cron: "5 0-9 * * *"
