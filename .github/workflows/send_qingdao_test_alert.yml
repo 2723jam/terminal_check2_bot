@@ -34,13 +34,13 @@ jobs:
           token = os.environ["TELEGRAM_BOT_TOKEN"]
           chat_id = os.environ["TELEGRAM_CHAT_ID"]
           message = """[테스트/과거 사례]
-※ QINGDAO
-중단사유 : 기상악화(태풍)
-중단기간 : 22.09.14 14:00 ~ 미정
+          ※ QINGDAO
+          중단사유 : 기상악화(태풍)
+          중단기간 : 22.09.14 14:00 ~ 미정
 
-출처 : GEODIS Customer Advisory 2022 & 2021 Archives (2022-09-16)
-근거 : Qingdao port and its CFS operation suspended as of 2:00 PM on 14 September 2022 until further notice from the port authority.
-URL : https://geodis.com/customer-advisory-2022-2021-archives"""
+          출처 : GEODIS Customer Advisory 2022 & 2021 Archives (2022-09-16)
+          근거 : Qingdao port and its CFS operation suspended as of 2:00 PM on 14 September 2022 until further notice from the port authority.
+          URL : https://geodis.com/customer-advisory-2022-2021-archives"""
 
           payload = urllib.parse.urlencode({"chat_id": chat_id, "text": message}).encode("utf-8")
           request = urllib.request.Request(
