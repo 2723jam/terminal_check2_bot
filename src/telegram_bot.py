@@ -9,7 +9,7 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 
 from src import BOT_NAME
 from src.aggregator import PortStatusAggregator
-from src.message_formatter import EMPTY_REPORT, format_events, message_hash, split_telegram_message
+from src.message_formatter import EMPTY_REPORT, format_events, format_weather_risks, message_hash, split_telegram_message
 from src.models import PortConfig
 from src.state_store import JsonStateStore
 
@@ -56,6 +56,7 @@ class TerminalCheckTelegramBot:
                 f"마지막 성공 : {state.get('last_success')}",
                 f"마지막 오류 : {state.get('last_error') or '-'}",
                 f"최근 이벤트 수 : {len(state.get('recent_events') or [])}",
+                f"최근 기상 우려 수 : {len(state.get('recent_weather_risks') or [])}",
             ]
         )
         if update.effective_chat:
@@ -70,19 +71,25 @@ class TerminalCheckTelegramBot:
     async def _check_and_send(self, reply_context: Update | None, force_empty: bool) -> None:
         try:
             result = await self.aggregator.collect()
-            message = format_events(result.events, self.ports) if result.events else ""
+            message_parts: list[str] = []
+            if result.events:
+                message_parts.append(format_events(result.events, self.ports))
+            if result.weather_risks:
+                message_parts.append(format_weather_risks(result.weather_risks, self.ports))
+            message = "\n\n".join(part for part in message_parts if part)
             should_send_empty = self.settings.send_empty_report or force_empty
             if not message and should_send_empty:
                 message = EMPTY_REPORT
             elif not message:
                 self.state_store.update_run(success=True)
                 self.state_store.record_events([])
+                self.state_store.record_weather_risks([])
                 return
 
             current_hash = message_hash(message)
             if (
                 not self.settings.send_unchanged_alerts
-                and result.events
+                and (result.events or result.weather_risks)
                 and current_hash == self.state_store.get_last_message_hash()
             ):
                 logger.info("skip unchanged alert")
@@ -92,6 +99,7 @@ class TerminalCheckTelegramBot:
             await self._send_message(message, reply_context)
             self.state_store.set_last_message_hash(current_hash)
             self.state_store.record_events(result.events)
+            self.state_store.record_weather_risks(result.weather_risks)
             self.state_store.update_run(success=True)
         except Exception as exc:  # noqa: BLE001 - report and persist bot-level failure.
             logger.exception("check failed")

@@ -34,6 +34,8 @@ async def main() -> None:
         keywords_config_path=keywords_config,
         timeout_seconds=float(os.getenv("HTTP_TIMEOUT_SECONDS", "20")),
         user_agent=os.getenv("HTTP_USER_AGENT"),
+        weather_risk_enabled=env_bool("WEATHER_RISK_ENABLED", True),
+        weather_risk_horizon_hours=int(os.getenv("WEATHER_RISK_HOURS", "12")),
     )
 
     settings = TelegramBotSettings(
@@ -54,7 +56,8 @@ async def main() -> None:
         "Finished one check. "
         f"success={state.get('last_success')} "
         f"last_run_at={state.get('last_run_at')} "
-        f"recent_events={len(state.get('recent_events') or [])}"
+        f"recent_events={len(state.get('recent_events') or [])} "
+        f"recent_weather_risks={len(state.get('recent_weather_risks') or [])}"
     )
 
 

@@ -5,7 +5,7 @@ from datetime import datetime
 from hashlib import sha256
 from zoneinfo import ZoneInfo
 
-from src.models import PortConfig, TerminalStatusEvent
+from src.models import PortConfig, TerminalStatusEvent, WeatherRiskEvent
 
 
 COUNTRY_ORDER = {"Korea": 0, "China": 1, "Vietnam": 2}
@@ -51,6 +51,50 @@ def format_events(
     sorted_items = sort_events(events, ports)
     blocks = [format_event(event, ports) for event in sorted_items]
     return "\n\n".join(blocks)
+
+
+def sort_weather_risks(
+    events: Iterable[WeatherRiskEvent],
+    ports: Sequence[PortConfig] | None = None,
+) -> list[WeatherRiskEvent]:
+    timezone_by_port = {port.port_code: port.timezone for port in ports or []}
+
+    def key(event: WeatherRiskEvent) -> tuple[int, int, datetime]:
+        tz_name = timezone_by_port.get(event.port_code)
+        local_start = event.start_time.astimezone(ZoneInfo(tz_name)) if tz_name else event.start_time
+        return (
+            COUNTRY_ORDER.get(event.country, 999),
+            PORT_ORDER.get(event.port_code, 999),
+            local_start,
+        )
+
+    return sorted(events, key=key)
+
+
+def format_weather_risks(
+    events: Iterable[WeatherRiskEvent],
+    ports: Sequence[PortConfig] | None = None,
+) -> str:
+    sorted_items = sort_weather_risks(events, ports)
+    if not sorted_items:
+        return ""
+
+    blocks = [
+        "[기상 작업속도 우려 - 실제 중단 공지 아님]",
+        *[format_weather_risk(event, ports) for event in sorted_items],
+        "참고 : 공식 작업 중단 공지가 아닌 기상 기반 주의 알림입니다.",
+    ]
+    return "\n\n".join(blocks)
+
+
+def format_weather_risk(event: WeatherRiskEvent, ports: Sequence[PortConfig] | None = None) -> str:
+    return "\n".join(
+        [
+            f"※ {event.port_code}",
+            f"우려사유 : {event.reason_display_ko}",
+            f"예상기간 : {_format_weather_period(event, ports)}",
+        ]
+    )
 
 
 def format_event(event: TerminalStatusEvent, ports: Sequence[PortConfig] | None = None) -> str:
@@ -103,6 +147,12 @@ def _format_period(event: TerminalStatusEvent, ports: Sequence[PortConfig] | Non
     end = _format_dt(_to_port_time(event.end_time, event.port_code, ports))
     suffix = " (미정)" if event.end_time_uncertain else ""
     return f"{start} ~ {end}{suffix}"
+
+
+def _format_weather_period(event: WeatherRiskEvent, ports: Sequence[PortConfig] | None = None) -> str:
+    start = _format_dt(_to_port_time(event.start_time, event.port_code, ports))
+    end = _format_dt(_to_port_time(event.end_time, event.port_code, ports))
+    return f"{start} ~ {end}"
 
 
 def _to_port_time(dt: datetime, port_code: str, ports: Sequence[PortConfig] | None = None) -> datetime:

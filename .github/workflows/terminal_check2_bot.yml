@@ -28,6 +28,8 @@ jobs:
       TIMEZONE: Asia/Seoul
       SEND_EMPTY_REPORT: ${{ vars.TERMINAL_CHECK2_SEND_EMPTY_REPORT || 'false' }}
       SEND_UNCHANGED_ALERTS: ${{ vars.TERMINAL_CHECK2_SEND_UNCHANGED_ALERTS || 'false' }}
+      WEATHER_RISK_ENABLED: ${{ vars.TERMINAL_CHECK2_WEATHER_RISK_ENABLED || 'true' }}
+      WEATHER_RISK_HOURS: ${{ vars.TERMINAL_CHECK2_WEATHER_RISK_HOURS || '12' }}
       HTTP_TIMEOUT_SECONDS: "20"
       HTTP_USER_AGENT: "terminal_check2_bot/1.0 (+official-port-notice-monitor)"
       LOG_LEVEL: INFO

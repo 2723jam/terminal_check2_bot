@@ -12,6 +12,8 @@ class PortConfig(BaseModel):
     port_code: str
     display_name: str
     timezone: str
+    latitude: float | None = None
+    longitude: float | None = None
     aliases: list[str] = Field(default_factory=list)
     terminals: list[str] = Field(default_factory=list)
     source_urls: list[str] = Field(default_factory=list)
@@ -42,8 +44,22 @@ class CheckFailure(BaseModel):
     error: str
 
 
+class WeatherRiskEvent(BaseModel):
+    country: str
+    port_code: str
+    risk_level: Literal["watch", "warning"]
+    reason_detail: str
+    reason_display_ko: str
+    start_time: datetime
+    end_time: datetime
+    source_url: str
+    raw_text: str
+    confidence: float = Field(ge=0.0, le=1.0, default=0.0)
+
+
 class AggregationResult(BaseModel):
     events: list[TerminalStatusEvent] = Field(default_factory=list)
+    weather_risks: list[WeatherRiskEvent] = Field(default_factory=list)
     failures: list[CheckFailure] = Field(default_factory=list)
 
 

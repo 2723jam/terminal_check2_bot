@@ -8,6 +8,8 @@ ports:
     port_code: INCHEON
     display_name: INCHEON
     timezone: Asia/Seoul
+    latitude: 37.4563
+    longitude: 126.7052
     aliases: ["INCHEON", "Incheon", "인천", "인천항", "IPA"]
     terminals: ["SNCT", "HJIT", "E1CT", "ICT", "IFPC"]
     source_urls:
@@ -19,6 +21,8 @@ ports:
     port_code: BUSAN
     display_name: BUSAN
     timezone: Asia/Seoul
+    latitude: 35.1010
+    longitude: 129.0403
     aliases: ["BUSAN", "Busan", "부산", "부산항", "BPA"]
     terminals: ["PNIT", "BNCT", "HPNT", "PNC", "BPT", "HKT", "DPCT"]
     source_urls:
@@ -33,6 +37,8 @@ ports:
     port_code: GWANGYANG
     display_name: GWANGYANG
     timezone: Asia/Seoul
+    latitude: 34.9010
+    longitude: 127.6950
     aliases: ["GWANGYANG", "Gwangyang", "광양", "광양항", "YGPA"]
     terminals: ["KIT", "GWCT"]
     source_urls:
@@ -45,6 +51,8 @@ ports:
     port_code: SHEKOU
     display_name: SHEKOU
     timezone: Asia/Shanghai
+    latitude: 22.4840
+    longitude: 113.9130
     aliases: ["SHEKOU", "Shekou", "蛇口", "深圳西部", "深圳", "赤湾"]
     terminals: ["SCT", "CCT", "MCT"]
     source_urls:
@@ -56,6 +64,8 @@ ports:
     port_code: QINGDAO
     display_name: QINGDAO
     timezone: Asia/Shanghai
+    latitude: 36.0671
+    longitude: 120.3826
     aliases: ["QINGDAO", "Qingdao", "青岛", "青岛港", "董家口"]
     terminals: ["QQCT", "QQCTN", "QQCTU", "QQCTUA", "DJK"]
     source_urls:
@@ -67,6 +77,8 @@ ports:
     port_code: SHANGHAI
     display_name: SHANGHAI
     timezone: Asia/Shanghai
+    latitude: 31.2304
+    longitude: 121.4737
     aliases: ["SHANGHAI", "Shanghai", "上海", "上海港", "洋山", "外高桥"]
     terminals: ["YANGSHAN", "WGQ", "SIPG"]
     source_urls:
@@ -78,6 +90,8 @@ ports:
     port_code: NINGBO
     display_name: NINGBO
     timezone: Asia/Shanghai
+    latitude: 29.8683
+    longitude: 121.5440
     aliases: ["NINGBO", "Ningbo", "宁波", "宁波舟山", "北仑", "梅山"]
     terminals: ["NBCT", "MSICT", "BLCT", "CMICT"]
     source_urls:
@@ -89,6 +103,8 @@ ports:
     port_code: TIANJIN
     display_name: TIANJIN
     timezone: Asia/Shanghai
+    latitude: 39.0090
+    longitude: 117.7060
     aliases: ["TIANJIN", "Tianjin", "天津", "天津港", "滨海新区"]
     terminals: ["TCT", "FICT", "TACT", "TPCT"]
     source_urls:
@@ -100,6 +116,8 @@ ports:
     port_code: HOCHIMINH
     display_name: HOCHIMINH
     timezone: Asia/Ho_Chi_Minh
+    latitude: 10.7769
+    longitude: 106.7009
     aliases: ["HOCHIMINH", "Ho Chi Minh", "HCMC", "Cat Lai", "Cát Lái", "Saigon", "Sài Gòn"]
     terminals: ["CAT LAI", "TAN CANG", "SP-ITC", "VICT"]
     source_urls:
@@ -110,6 +128,8 @@ ports:
     port_code: HAIPHONG
     display_name: HAIPHONG
     timezone: Asia/Ho_Chi_Minh
+    latitude: 20.8449
+    longitude: 106.6881
     aliases: ["HAIPHONG", "Hai Phong", "Hải Phòng", "Lach Huyen", "Lạch Huyện"]
     terminals: ["HICT", "NAM DINH VU", "VIP GREEN", "DINH VU"]
     source_urls:

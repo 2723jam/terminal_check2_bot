@@ -44,6 +44,8 @@ Copy-Item .env.example .env
 - `TIMEZONE`: 스케줄 기준 timezone, 기본값 `Asia/Seoul`
 - `SEND_EMPTY_REPORT`: true이면 이벤트가 없어도 빈 리포트 발송
 - `SEND_UNCHANGED_ALERTS`: false이면 직전 발송 내용과 같을 때 생략
+- `WEATHER_RISK_ENABLED`: true이면 공식 중단 공지와 별개로 기상 기반 작업속도 우려 알림 발송
+- `WEATHER_RISK_HOURS`: 기상 우려 확인 범위, 기본값 12시간
 - `HTTP_TIMEOUT_SECONDS`: 출처 fetch timeout
 - `HTTP_USER_AGENT`: 공식 사이트 요청 User-Agent
 - `LOG_LEVEL`: 기본값 `INFO`
@@ -112,6 +114,8 @@ GitHub 저장소 화면에서:
 
 - `TERMINAL_CHECK2_SEND_EMPTY_REPORT`: 기본값 `false`
 - `TERMINAL_CHECK2_SEND_UNCHANGED_ALERTS`: 기본값 `false`
+- `TERMINAL_CHECK2_WEATHER_RISK_ENABLED`: 기본값 `true`
+- `TERMINAL_CHECK2_WEATHER_RISK_HOURS`: 기본값 `12`
 
 워크플로우 파일은 `.github/workflows/terminal_check2_bot.yml`입니다. GitHub Actions cron은 UTC 기준이므로 `5 0-9 * * *`로 설정해 `Asia/Seoul` 09:05~18:05에 맞췄습니다. `workflow_dispatch`도 켜져 있어서 Actions 탭에서 수동 실행할 수 있습니다.
 
@@ -148,6 +152,30 @@ source_urls:
 - `WeatherClassifier`는 이미 확인된 중단 공지의 기상 세부 사유를 분류하는 보조 로직입니다.
 - 중국은 군사훈련, 실탄사격, 항행금지, 임시 해상통제, 항행경고 키워드를 별도로 체크합니다.
 - 특정 항구 fetch 실패는 전체 실패로 전파하지 않고 상태 저장소에 실패 정보로 남깁니다.
+
+## 기상 작업속도 우려
+
+`WEATHER_RISK_ENABLED=true`이면 항구 좌표 기준 예보를 별도로 확인해 폭우, 강풍, 안개, 폭설, 해상악천후가 작업 속도에 영향을 줄 수 있는 시간대를 보냅니다. 이 알림은 공식 중단 공지로 처리하지 않으며 메시지 상단에 `[기상 작업속도 우려 - 실제 중단 공지 아님]`을 붙입니다.
+
+기본 임계값:
+
+- 폭우: 시간당 강수량 10mm 이상 또는 6시간 누적 25mm 이상
+- 강풍: 순간풍속 17m/s 이상
+- 해상악천후: 순간풍속 21m/s 이상 또는 뇌우 코드
+- 안개: 예보 weather code 45 또는 48
+- 폭설: 시간당 적설 2mm 이상
+
+예시:
+
+```text
+[기상 작업속도 우려 - 실제 중단 공지 아님]
+
+※ QINGDAO
+우려사유 : 폭우
+예상기간 : 26.05.29 13:00 ~ 26.05.29 19:00
+
+참고 : 공식 작업 중단 공지가 아닌 기상 기반 주의 알림입니다.
+```
 
 ## 한계사항
 
