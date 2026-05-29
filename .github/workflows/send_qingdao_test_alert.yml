@@ -43,25 +43,42 @@ jobs:
           근거 : Qingdao port and its CFS operation suspended as of 2:00 PM on 14 September 2022 until further notice from the port authority.
           URL : https://geodis.com/customer-advisory-2022-2021-archives"""
 
-          payload = urllib.parse.urlencode({"chat_id": chat_id, "text": message}).encode("utf-8")
-          request = urllib.request.Request(
-              f"https://api.telegram.org/bot{token}/sendMessage",
-              data=payload,
-              method="POST",
-          )
-          try:
-              with urllib.request.urlopen(request, timeout=20) as response:
-                  body = json.loads(response.read().decode("utf-8"))
-          except urllib.error.HTTPError as exc:
-              error_body = exc.read().decode("utf-8", errors="replace")
+          def call_telegram(method, params=None):
+              data = urllib.parse.urlencode(params or {}).encode("utf-8") if params else None
+              request = urllib.request.Request(
+                  f"https://api.telegram.org/bot{token}/{method}",
+                  data=data,
+                  method="POST" if data else "GET",
+              )
               try:
-                  description = json.loads(error_body).get("description", error_body)
-              except json.JSONDecodeError:
-                  description = error_body
-              print(f"::error title=Telegram API error::HTTP {exc.code} {description}")
-              raise SystemExit(1)
+                  with urllib.request.urlopen(request, timeout=20) as response:
+                      return json.loads(response.read().decode("utf-8"))
+              except urllib.error.HTTPError as exc:
+                  error_body = exc.read().decode("utf-8", errors="replace")
+                  try:
+                      description = json.loads(error_body).get("description", error_body)
+                  except json.JSONDecodeError:
+                      description = error_body
+                  return {"ok": False, "http_status": exc.code, "description": description}
+
+          body = call_telegram("sendMessage", {"chat_id": chat_id, "text": message})
+          if not body.get("ok") and "chat not found" in body.get("description", "").lower():
+              updates = call_telegram("getUpdates")
+              latest_chat_id = None
+              if updates.get("ok"):
+                  for update in reversed(updates.get("result", [])):
+                      item = update.get("message") or update.get("channel_post")
+                      if item and item.get("chat", {}).get("id"):
+                          latest_chat_id = str(item["chat"]["id"])
+                          break
+              if latest_chat_id:
+                  body = call_telegram("sendMessage", {"chat_id": latest_chat_id, "text": message})
+              else:
+                  print("::error title=Telegram chat not found::Send /start or any message to the bot, then update TERMINAL_CHECK2_TELEGRAM_CHAT_ID with that chat id.")
+                  raise SystemExit(1)
           if not body.get("ok"):
-              print(f"::error title=Telegram API error::{body.get('description', body)}")
+              status = body.get("http_status", "unknown")
+              print(f"::error title=Telegram API error::HTTP {status} {body.get('description', body)}")
               raise SystemExit(1)
           print("Telegram Qingdao historical test alert sent.")
           PY
