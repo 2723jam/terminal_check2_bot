@@ -1,0 +1,10 @@
+services:
+  terminal_check2_bot:
+    build: .
+    container_name: terminal_check2_bot
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config:ro
+    restart: unless-stopped

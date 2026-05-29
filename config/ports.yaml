@@ -1,0 +1,117 @@
+bot_name: terminal_check2_bot
+country_order:
+  - Korea
+  - China
+  - Vietnam
+ports:
+  - country: Korea
+    port_code: INCHEON
+    display_name: INCHEON
+    timezone: Asia/Seoul
+    aliases: ["INCHEON", "Incheon", "인천", "인천항", "IPA"]
+    terminals: ["SNCT", "HJIT", "E1CT", "ICT", "IFPC"]
+    source_urls:
+      - "https://scon.icpa.or.kr/index.do"
+      - "https://www.icpa.or.kr/index.do"
+    enabled: true
+
+  - country: Korea
+    port_code: BUSAN
+    display_name: BUSAN
+    timezone: Asia/Seoul
+    aliases: ["BUSAN", "Busan", "부산", "부산항", "BPA"]
+    terminals: ["PNIT", "BNCT", "HPNT", "PNC", "BPT", "HKT", "DPCT"]
+    source_urls:
+      - "https://www.busanpa.com/index.bpa?menuCd=DOM_000000105001005000"
+      - "https://www.pnitl.com/homepage/"
+      - "https://www.bnctkorea.com/"
+      - "https://www.hpnt.co.kr/homepage/"
+      - "https://www.bptc.co.kr/"
+    enabled: true
+
+  - country: Korea
+    port_code: GWANGYANG
+    display_name: GWANGYANG
+    timezone: Asia/Seoul
+    aliases: ["GWANGYANG", "Gwangyang", "광양", "광양항", "YGPA"]
+    terminals: ["KIT", "GWCT"]
+    source_urls:
+      - "https://www.ygpa.or.kr/"
+      - "https://www.kitl.com/"
+      - "TODO: verify GWCT official notice URL before enabling"
+    enabled: true
+
+  - country: China
+    port_code: SHEKOU
+    display_name: SHEKOU
+    timezone: Asia/Shanghai
+    aliases: ["SHEKOU", "Shekou", "蛇口", "深圳西部", "深圳", "赤湾"]
+    terminals: ["SCT", "CCT", "MCT"]
+    source_urls:
+      - "https://www.sz.msa.gov.cn/bjjj/408.jhtml"
+      - "TODO: verify Shenzhen/Shekou MSA navigational warning list URL before enabling"
+    enabled: true
+
+  - country: China
+    port_code: QINGDAO
+    display_name: QINGDAO
+    timezone: Asia/Shanghai
+    aliases: ["QINGDAO", "Qingdao", "青岛", "青岛港", "董家口"]
+    terminals: ["QQCT", "QQCTN", "QQCTU", "QQCTUA", "DJK"]
+    source_urls:
+      - "https://www.sd.msa.gov.cn/"
+      - "https://www.msa.gov.cn/page/outter/weather.jsp"
+    enabled: true
+
+  - country: China
+    port_code: SHANGHAI
+    display_name: SHANGHAI
+    timezone: Asia/Shanghai
+    aliases: ["SHANGHAI", "Shanghai", "上海", "上海港", "洋山", "外高桥"]
+    terminals: ["YANGSHAN", "WGQ", "SIPG"]
+    source_urls:
+      - "https://www.sh.msa.gov.cn/"
+      - "https://www.msa.gov.cn/page/outter/weather.jsp"
+    enabled: true
+
+  - country: China
+    port_code: NINGBO
+    display_name: NINGBO
+    timezone: Asia/Shanghai
+    aliases: ["NINGBO", "Ningbo", "宁波", "宁波舟山", "北仑", "梅山"]
+    terminals: ["NBCT", "MSICT", "BLCT", "CMICT"]
+    source_urls:
+      - "https://www.zj.msa.gov.cn/NB/ggfw/hxjg/index_17.html"
+      - "https://www.zj.msa.gov.cn/NB/ggfw/hxtg/"
+    enabled: true
+
+  - country: China
+    port_code: TIANJIN
+    display_name: TIANJIN
+    timezone: Asia/Shanghai
+    aliases: ["TIANJIN", "Tianjin", "天津", "天津港", "滨海新区"]
+    terminals: ["TCT", "FICT", "TACT", "TPCT"]
+    source_urls:
+      - "TODO: verify Tianjin MSA official navigational warning URL before enabling"
+      - "https://www.msa.gov.cn/page/outter/weather.jsp"
+    enabled: true
+
+  - country: Vietnam
+    port_code: HOCHIMINH
+    display_name: HOCHIMINH
+    timezone: Asia/Ho_Chi_Minh
+    aliases: ["HOCHIMINH", "Ho Chi Minh", "HCMC", "Cat Lai", "Cát Lái", "Saigon", "Sài Gòn"]
+    terminals: ["CAT LAI", "TAN CANG", "SP-ITC", "VICT"]
+    source_urls:
+      - "https://saigonnewport.com.vn/"
+    enabled: true
+
+  - country: Vietnam
+    port_code: HAIPHONG
+    display_name: HAIPHONG
+    timezone: Asia/Ho_Chi_Minh
+    aliases: ["HAIPHONG", "Hai Phong", "Hải Phòng", "Lach Huyen", "Lạch Huyện"]
+    terminals: ["HICT", "NAM DINH VU", "VIP GREEN", "DINH VU"]
+    source_urls:
+      - "https://haiphongport.com.vn/"
+    enabled: true
