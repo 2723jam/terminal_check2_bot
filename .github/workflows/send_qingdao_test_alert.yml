@@ -8,7 +8,6 @@ on:
 
 jobs:
   send-test-alert:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[send-qingdao-test]')
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
