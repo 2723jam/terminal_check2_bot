@@ -1,0 +1,57 @@
+name: send_qingdao_test_alert
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  send-test-alert:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[send-qingdao-test]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TERMINAL_CHECK2_TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TERMINAL_CHECK2_TELEGRAM_CHAT_ID }}
+
+    steps:
+      - name: Validate required secrets
+        shell: bash
+        run: |
+          test -n "$TELEGRAM_BOT_TOKEN" || (echo "Missing TERMINAL_CHECK2_TELEGRAM_BOT_TOKEN" && exit 1)
+          test -n "$TELEGRAM_CHAT_ID" || (echo "Missing TERMINAL_CHECK2_TELEGRAM_CHAT_ID" && exit 1)
+
+      - name: Send Qingdao historical test alert
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import urllib.parse
+          import urllib.request
+
+          token = os.environ["TELEGRAM_BOT_TOKEN"]
+          chat_id = os.environ["TELEGRAM_CHAT_ID"]
+          message = """[테스트/과거 사례]
+※ QINGDAO
+중단사유 : 기상악화(태풍)
+중단기간 : 22.09.14 14:00 ~ 미정
+
+출처 : GEODIS Customer Advisory 2022 & 2021 Archives (2022-09-16)
+근거 : Qingdao port and its CFS operation suspended as of 2:00 PM on 14 September 2022 until further notice from the port authority.
+URL : https://geodis.com/customer-advisory-2022-2021-archives"""
+
+          payload = urllib.parse.urlencode({"chat_id": chat_id, "text": message}).encode("utf-8")
+          request = urllib.request.Request(
+              f"https://api.telegram.org/bot{token}/sendMessage",
+              data=payload,
+              method="POST",
+          )
+          with urllib.request.urlopen(request, timeout=20) as response:
+              body = json.loads(response.read().decode("utf-8"))
+          if not body.get("ok"):
+              raise SystemExit(f"Telegram API returned ok=false: {body}")
+          print("Telegram Qingdao historical test alert sent.")
+          PY
