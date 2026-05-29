@@ -30,6 +30,7 @@ jobs:
           import os
           import urllib.parse
           import urllib.request
+          import urllib.error
 
           token = os.environ["TELEGRAM_BOT_TOKEN"]
           chat_id = os.environ["TELEGRAM_CHAT_ID"]
@@ -48,9 +49,19 @@ jobs:
               data=payload,
               method="POST",
           )
-          with urllib.request.urlopen(request, timeout=20) as response:
-              body = json.loads(response.read().decode("utf-8"))
+          try:
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  body = json.loads(response.read().decode("utf-8"))
+          except urllib.error.HTTPError as exc:
+              error_body = exc.read().decode("utf-8", errors="replace")
+              try:
+                  description = json.loads(error_body).get("description", error_body)
+              except json.JSONDecodeError:
+                  description = error_body
+              print(f"::error title=Telegram API error::HTTP {exc.code} {description}")
+              raise SystemExit(1)
           if not body.get("ok"):
-              raise SystemExit(f"Telegram API returned ok=false: {body}")
+              print(f"::error title=Telegram API error::{body.get('description', body)}")
+              raise SystemExit(1)
           print("Telegram Qingdao historical test alert sent.")
           PY
