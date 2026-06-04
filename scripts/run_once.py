@@ -57,7 +57,8 @@ async def main() -> None:
         f"success={state.get('last_success')} "
         f"last_run_at={state.get('last_run_at')} "
         f"recent_events={len(state.get('recent_events') or [])} "
-        f"recent_weather_risks={len(state.get('recent_weather_risks') or [])}"
+        f"recent_weather_risks={len(state.get('recent_weather_risks') or [])} "
+        f"last_failure_count={state.get('last_failure_count', 0)}"
     )
 
 

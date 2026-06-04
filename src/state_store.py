@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from src import BOT_NAME
-from src.models import TerminalStatusEvent, WeatherRiskEvent
+from src.models import CheckFailure, TerminalStatusEvent, WeatherRiskEvent
 
 
 class JsonStateStore:
@@ -51,6 +51,12 @@ class JsonStateStore:
         state["recent_weather_risks"] = [_event_to_json(event) for event in events[-50:]]
         self.save(state)
 
+    def record_failures(self, failures: list[CheckFailure]) -> None:
+        state = self.load()
+        state["recent_failures"] = [_event_to_json(failure) for failure in failures[-50:]]
+        state["last_failure_count"] = len(failures)
+        self.save(state)
+
     @staticmethod
     def _default_state() -> dict[str, Any]:
         return {
@@ -61,6 +67,8 @@ class JsonStateStore:
             "last_message_hash": None,
             "recent_events": [],
             "recent_weather_risks": [],
+            "recent_failures": [],
+            "last_failure_count": 0,
         }
 
 

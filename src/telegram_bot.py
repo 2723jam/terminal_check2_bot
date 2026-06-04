@@ -57,6 +57,7 @@ class TerminalCheckTelegramBot:
                 f"마지막 오류 : {state.get('last_error') or '-'}",
                 f"최근 이벤트 수 : {len(state.get('recent_events') or [])}",
                 f"최근 기상 우려 수 : {len(state.get('recent_weather_risks') or [])}",
+                f"최근 수집 실패 수 : {state.get('last_failure_count', 0)}",
             ]
         )
         if update.effective_chat:
@@ -71,6 +72,7 @@ class TerminalCheckTelegramBot:
     async def _check_and_send(self, reply_context: Update | None, force_empty: bool) -> None:
         try:
             result = await self.aggregator.collect()
+            self.state_store.record_failures(result.failures)
             message_parts: list[str] = []
             if result.events:
                 message_parts.append(format_events(result.events, self.ports))

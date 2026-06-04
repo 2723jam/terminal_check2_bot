@@ -52,7 +52,8 @@ Actions links:
 
 - Timezone: `Asia/Seoul`
 - Runs daily at `09:05` through `18:05`, hourly.
-- GitHub cron: `5 0-9 * * *`
+- GitHub primary cron: `5 0-9 * * *`
+- GitHub watchdog cron: `20,35,50 0-9 * * *`
 - Manual run is enabled by `workflow_dispatch`.
 
 ## Current Features
