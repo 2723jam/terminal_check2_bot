@@ -8,7 +8,8 @@ on:
     # Asia/Seoul 09:05-18:05 == UTC 00:05-09:05
     - cron: "5 0-9 * * *"
     # GitHub scheduled runs can be delayed or dropped; these watchdog slots
-    # improve coverage while duplicate-message suppression prevents repeats.
+    # improve coverage, and scripts.run_once allows one successful check per
+    # Asia/Seoul hourly slot.
     - cron: "20,35,50 0-9 * * *"
   workflow_dispatch:
 

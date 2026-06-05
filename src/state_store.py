@@ -57,6 +57,14 @@ class JsonStateStore:
         state["last_failure_count"] = len(failures)
         self.save(state)
 
+    def get_last_scheduled_slot(self) -> str | None:
+        return self.load().get("last_scheduled_slot")
+
+    def set_last_scheduled_slot(self, value: str) -> None:
+        state = self.load()
+        state["last_scheduled_slot"] = value
+        self.save(state)
+
     @staticmethod
     def _default_state() -> dict[str, Any]:
         return {
@@ -69,6 +77,7 @@ class JsonStateStore:
             "recent_weather_risks": [],
             "recent_failures": [],
             "last_failure_count": 0,
+            "last_scheduled_slot": None,
         }
 
 

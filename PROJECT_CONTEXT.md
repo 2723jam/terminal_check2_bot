@@ -54,6 +54,7 @@ Actions links:
 - Runs daily at `09:05` through `18:05`, hourly.
 - GitHub primary cron: `5 0-9 * * *`
 - GitHub watchdog cron: `20,35,50 0-9 * * *`
+- `scripts.run_once` stores `last_scheduled_slot` so GitHub watchdog retries can fill a missed hour without running the same Asia/Seoul hourly slot more than once after a successful check.
 - Manual run is enabled by `workflow_dispatch`.
 
 ## Current Features
@@ -63,7 +64,7 @@ Actions links:
   - `/status`
   - `/ports`
 - GitHub Actions scheduled execution.
-- JSON state store with last run, success/failure, last message hash, recent events, recent weather risks.
+- JSON state store with last run, success/failure, last message hash, recent events, recent weather risks, source failures, and last successful scheduled slot.
 - Telegram message split at 4096 characters.
 - Duplicate suppression by message hash when `SEND_UNCHANGED_ALERTS=false`.
 - Empty report controlled by `SEND_EMPTY_REPORT`.
@@ -105,7 +106,7 @@ Local tests:
 9 passed
 ```
 
-The latest main GitHub Actions run after adding weather-risk advisories completed successfully.
+The latest main GitHub Actions run after adding schedule watchdog coverage and failure visibility completed successfully.
 
 ## Known TODO
 

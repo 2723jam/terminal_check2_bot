@@ -117,7 +117,7 @@ GitHub 저장소 화면에서:
 - `TERMINAL_CHECK2_WEATHER_RISK_ENABLED`: 기본값 `true`
 - `TERMINAL_CHECK2_WEATHER_RISK_HOURS`: 기본값 `12`
 
-워크플로우 파일은 `.github/workflows/terminal_check2_bot.yml`입니다. GitHub Actions cron은 UTC 기준이므로 기본 슬롯은 `5 0-9 * * *`로 설정해 `Asia/Seoul` 09:05~18:05에 맞췄습니다. GitHub schedule은 지연되거나 드롭될 수 있어 보조 watchdog 슬롯 `20,35,50 0-9 * * *`도 함께 둡니다. 중복 메시지는 `SEND_UNCHANGED_ALERTS=false`와 상태 hash로 억제합니다. `workflow_dispatch`도 켜져 있어서 Actions 탭에서 수동 실행할 수 있습니다.
+워크플로우 파일은 `.github/workflows/terminal_check2_bot.yml`입니다. GitHub Actions cron은 UTC 기준이므로 기본 슬롯은 `5 0-9 * * *`로 설정해 `Asia/Seoul` 09:05~18:05에 맞췄습니다. GitHub schedule은 지연되거나 드롭될 수 있어 보조 watchdog 슬롯 `20,35,50 0-9 * * *`도 함께 둡니다. `schedule` 이벤트에서는 상태 파일의 `last_scheduled_slot`으로 서울 기준 같은 날짜/시간 슬롯당 1회만 실제 체크합니다. 중복 메시지는 `SEND_UNCHANGED_ALERTS=false`와 상태 hash로도 한 번 더 억제합니다. `workflow_dispatch`도 켜져 있어서 Actions 탭에서 수동 실행할 수 있습니다.
 
 ## 알림 형식
 
