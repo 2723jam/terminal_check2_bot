@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
-from datetime import datetime
+from datetime import UTC, datetime
+from pathlib import Path
 
 from dotenv import load_dotenv
 
 from src.aggregator import PortStatusAggregator
 from src.models import load_ports_config
-from src.scheduler import scheduled_slot_id
+from src.scheduler import scheduled_slot_id_from_github_schedule
 from src.state_store import JsonStateStore
 from src.telegram_bot import TelegramBotSettings, TerminalCheckTelegramBot
 
@@ -18,6 +20,19 @@ def env_bool(name: str, default: bool = False) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def github_schedule_expression() -> str | None:
+    event_path = os.getenv("GITHUB_EVENT_PATH")
+    if not event_path:
+        return None
+    path = Path(event_path)
+    if not path.exists():
+        return None
+    with path.open("r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    schedule = payload.get("schedule")
+    return schedule if isinstance(schedule, str) else None
 
 
 async def main() -> None:
@@ -34,7 +49,11 @@ async def main() -> None:
     state_store = JsonStateStore(state_file)
     current_slot = None
     if os.getenv("GITHUB_EVENT_NAME") == "schedule":
-        current_slot = scheduled_slot_id(datetime.now().astimezone(), timezone_name)
+        current_slot = scheduled_slot_id_from_github_schedule(
+            github_schedule_expression(),
+            datetime.now(UTC),
+            timezone_name,
+        )
         if current_slot is None:
             print("Skipped scheduled run outside configured Asia/Seoul 09:05-18:05 window.")
             return

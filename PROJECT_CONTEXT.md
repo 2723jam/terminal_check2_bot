@@ -52,8 +52,7 @@ Actions links:
 
 - Timezone: `Asia/Seoul`
 - Runs daily at `09:05` through `18:05`, hourly.
-- GitHub primary cron: `5 0-9 * * *`
-- GitHub watchdog cron: `20,35,50 0-9 * * *`
+- GitHub cron entries: `5,20,35,50 {0..9} * * *` split into 10 UTC-hour entries so `github.event.schedule` identifies the intended Asia/Seoul hourly slot even when GitHub delays the run.
 - `scripts.run_once` stores `last_scheduled_slot` so GitHub watchdog retries can fill a missed hour without running the same Asia/Seoul hourly slot more than once after a successful check.
 - Manual run is enabled by `workflow_dispatch`.
 
