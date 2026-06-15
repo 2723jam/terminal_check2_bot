@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 import httpx
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from src.models import PortConfig, TerminalStatusEvent
+from src.models import CheckFailure, PortConfig, TerminalStatusEvent
 
 
 class BaseAdapter(ABC):
@@ -14,6 +14,13 @@ class BaseAdapter(ABC):
     def __init__(self, timeout_seconds: float = 20.0, user_agent: str | None = None) -> None:
         self.timeout_seconds = timeout_seconds
         self.user_agent = user_agent or "terminal_check2_bot/1.0"
+        self.last_failures: list[CheckFailure] = []
+
+    def reset_failures(self) -> None:
+        self.last_failures = []
+
+    def record_failure(self, port_code: str, source_url: str | None, error: Exception) -> None:
+        self.last_failures.append(CheckFailure(port_code=port_code, source_url=source_url, error=str(error)))
 
     @retry(
         retry=retry_if_exception_type((httpx.TimeoutException, httpx.TransportError)),

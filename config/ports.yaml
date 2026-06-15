@@ -53,7 +53,7 @@ ports:
     timezone: Asia/Shanghai
     latitude: 22.4840
     longitude: 113.9130
-    aliases: ["SHEKOU", "Shekou", "蛇口", "深圳西部", "深圳", "赤湾"]
+    aliases: ["SHEKOU", "Shekou", "蛇口", "深圳蛇口", "深圳港", "招商局港口"]
     terminals: ["SCT", "CCT", "MCT"]
     source_urls:
       - "https://www.sz.msa.gov.cn/bjjj/408.jhtml"
@@ -66,11 +66,11 @@ ports:
     timezone: Asia/Shanghai
     latitude: 36.0671
     longitude: 120.3826
-    aliases: ["QINGDAO", "Qingdao", "青岛", "青岛港", "董家口"]
+    aliases: ["QINGDAO", "Qingdao", "青岛", "青岛港", "青島", "山东港口青岛港"]
     terminals: ["QQCT", "QQCTN", "QQCTU", "QQCTUA", "DJK"]
     source_urls:
       - "https://www.sd.msa.gov.cn/"
-      - "https://www.msa.gov.cn/page/outter/weather.jsp"
+      - "TODO: https://www.msa.gov.cn/page/outter/weather.jsp returns 403 in GitHub Actions; replace with verified Qingdao notice URL"
     enabled: true
 
   - country: China
@@ -83,7 +83,7 @@ ports:
     terminals: ["YANGSHAN", "WGQ", "SIPG"]
     source_urls:
       - "https://www.sh.msa.gov.cn/"
-      - "https://www.msa.gov.cn/page/outter/weather.jsp"
+      - "TODO: https://www.msa.gov.cn/page/outter/weather.jsp returns 403 in GitHub Actions; replace with verified Shanghai notice URL"
     enabled: true
 
   - country: China
@@ -92,11 +92,11 @@ ports:
     timezone: Asia/Shanghai
     latitude: 29.8683
     longitude: 121.5440
-    aliases: ["NINGBO", "Ningbo", "宁波", "宁波舟山", "北仑", "梅山"]
+    aliases: ["NINGBO", "Ningbo", "宁波", "宁波舟山港", "寧波", "舟山港"]
     terminals: ["NBCT", "MSICT", "BLCT", "CMICT"]
     source_urls:
-      - "https://www.zj.msa.gov.cn/NB/ggfw/hxjg/index_17.html"
-      - "https://www.zj.msa.gov.cn/NB/ggfw/hxtg/"
+      - "TODO: https://www.zj.msa.gov.cn/NB/ggfw/hxjg/index_17.html returned 404; replace with verified Ningbo notice URL"
+      - "TODO: https://www.zj.msa.gov.cn/NB/ggfw/hxtg/ returned 404; replace with verified Ningbo notice URL"
     enabled: true
 
   - country: China
@@ -105,11 +105,11 @@ ports:
     timezone: Asia/Shanghai
     latitude: 39.0090
     longitude: 117.7060
-    aliases: ["TIANJIN", "Tianjin", "天津", "天津港", "滨海新区"]
+    aliases: ["TIANJIN", "Tianjin", "天津", "天津港", "天津新港"]
     terminals: ["TCT", "FICT", "TACT", "TPCT"]
     source_urls:
       - "TODO: verify Tianjin MSA official navigational warning URL before enabling"
-      - "https://www.msa.gov.cn/page/outter/weather.jsp"
+      - "TODO: https://www.msa.gov.cn/page/outter/weather.jsp returns 403 in GitHub Actions; replace with verified Tianjin notice URL"
     enabled: true
 
   - country: Vietnam

@@ -55,12 +55,12 @@ class PortStatusAggregator:
         adapter = self._adapter_for_port(port)
         try:
             events = await adapter.check(port)
-            return AggregationResult(events=events, failures=[])
+            return AggregationResult(events=events, failures=adapter.last_failures)
         except Exception as exc:  # noqa: BLE001 - port-level isolation is intentional.
             logger.exception("port check failed: {}", port.port_code)
             return AggregationResult(
                 events=[],
-                failures=[CheckFailure(port_code=port.port_code, source_url=None, error=str(exc))],
+                failures=[*adapter.last_failures, CheckFailure(port_code=port.port_code, source_url=None, error=str(exc))],
             )
 
     def _adapter_for_port(self, port: PortConfig) -> BaseAdapter:

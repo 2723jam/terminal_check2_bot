@@ -2,6 +2,7 @@ operation_stop_keywords:
   - "작업 중단"
   - "작업중단"
   - "작업 제한"
+  - "작업제한"
   - "운영 중단"
   - "운영중단"
   - "터미널 폐쇄"
@@ -27,14 +28,18 @@ operation_stop_keywords:
   - "terminal closure"
   - "gate closure"
   - "berthing suspended"
-  - "작业暂停"
+  - "作业暂停"
   - "暂停作业"
   - "停止作业"
+  - "作业受限"
   - "码头关闭"
-  - "闸口关闭"
-  - "堆场关闭"
-  - "靠泊暂停"
-  - "港区封闭"
+  - "暂停靠泊"
+  - "停止靠泊"
+  - "船舶作业暂停"
+  - "泊位暂停"
+  - "停航"
+  - "禁航"
+  - "临时管制"
 
 uncertain_end_keywords:
   - "미정"
@@ -48,10 +53,31 @@ uncertain_end_keywords:
   - "恢复时间另行通知"
 
 reason_keywords:
-  congestion: ["혼잡", "항만혼잡", "congestion", "port congestion", "拥堵", "港口拥堵"]
-  equipment: ["장비고장", "장비 장애", "equipment failure", "equipment breakdown", "设备故障"]
-  power: ["정전", "power outage", "power failure", "停电", "电力故障"]
-  other: ["사고", "incident", "accident", "事故", "기타"]
+  congestion:
+    - "혼잡"
+    - "항만혼잡"
+    - "congestion"
+    - "port congestion"
+    - "拥堵"
+    - "港口拥堵"
+  equipment:
+    - "장비고장"
+    - "장비 장애"
+    - "equipment failure"
+    - "equipment breakdown"
+    - "设备故障"
+  power:
+    - "정전"
+    - "power outage"
+    - "power failure"
+    - "停电"
+    - "电力故障"
+  other:
+    - "사고"
+    - "incident"
+    - "accident"
+    - "事故"
+    - "기타"
 
 china_weather_keywords:
   heavy_rain:

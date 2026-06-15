@@ -19,7 +19,7 @@ def test_qingdao_weather_heavy_rain_format() -> None:
         end_time_uncertain=True,
         source_url="https://www.sd.msa.gov.cn/",
         source_title="test",
-        raw_text="青岛港 暴雨 作业暂停",
+        raw_text="青岛港因暴雨暂停作业",
         confidence=0.9,
     )
 
@@ -42,9 +42,9 @@ def test_tianjin_military_format_date_only_open_end() -> None:
         start_time=datetime(2026, 5, 30, 0, 0, tzinfo=ZoneInfo("Asia/Shanghai")),
         end_time=None,
         end_time_uncertain=True,
-        source_url="https://www.msa.gov.cn/page/outter/weather.jsp",
+        source_url="https://www.msa.gov.cn/",
         source_title="test",
-        raw_text="天津港 军事训练 禁航",
+        raw_text="天津港附近实弹射击禁航",
         confidence=0.9,
     )
 

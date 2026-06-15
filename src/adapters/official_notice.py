@@ -29,10 +29,14 @@ class OfficialNoticeAdapter(BaseAdapter):
         self.classifier = WeatherClassifier.from_yaml(keywords_config_path)
 
     async def check(self, port: PortConfig) -> list[TerminalStatusEvent]:
+        self.reset_failures()
         events: list[TerminalStatusEvent] = []
         for source_url in self.usable_source_urls(port):
-            html = await self.fetch(source_url)
-            events.extend(self.parse(port=port, html=html, source_url=source_url))
+            try:
+                html = await self.fetch(source_url)
+                events.extend(self.parse(port=port, html=html, source_url=source_url))
+            except Exception as exc:  # noqa: BLE001 - one bad source must not discard the port.
+                self.record_failure(port.port_code, source_url, exc)
         return events
 
     def parse(self, port: PortConfig, html: str, source_url: str) -> list[TerminalStatusEvent]:
@@ -49,6 +53,8 @@ class OfficialNoticeAdapter(BaseAdapter):
         start_time, end_time = self._extract_time_range(text, port.timezone)
         end_uncertain = self._contains_any(text, self.uncertain_end_keywords) or end_time is None
         now = datetime.now(ZoneInfo(port.timezone))
+        if _is_invalid_or_past_period(start_time, end_time, now):
+            return []
         status = "planned" if start_time > now else "active"
 
         return [
@@ -140,3 +146,11 @@ _DATE_PATTERN = re.compile(
     r"(?P<year>\d{2,4})[./-](?P<month>\d{1,2})[./-](?P<day>\d{1,2})"
     r"(?:\s*(?P<hour>\d{1,2}):(?P<minute>\d{2}))?"
 )
+
+
+def _is_invalid_or_past_period(start_time: datetime, end_time: datetime | None, now: datetime) -> bool:
+    if end_time is None:
+        return False
+    if end_time < start_time:
+        return True
+    return end_time < now

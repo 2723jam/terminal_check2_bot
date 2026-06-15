@@ -55,9 +55,10 @@ class TerminalCheckTelegramBot:
                 f"마지막 실행 : {state.get('last_run_at') or '-'}",
                 f"마지막 성공 : {state.get('last_success')}",
                 f"마지막 오류 : {state.get('last_error') or '-'}",
-                f"최근 이벤트 수 : {len(state.get('recent_events') or [])}",
+                f"최근 중단 이벤트 수 : {len(state.get('recent_events') or [])}",
                 f"최근 기상 우려 수 : {len(state.get('recent_weather_risks') or [])}",
                 f"최근 수집 실패 수 : {state.get('last_failure_count', 0)}",
+                f"마지막 스케줄 슬롯 : {state.get('last_scheduled_slot') or '-'}",
             ]
         )
         if update.effective_chat:

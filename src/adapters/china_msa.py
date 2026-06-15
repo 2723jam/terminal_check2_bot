@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from src.adapters.official_notice import OfficialNoticeAdapter
+from src.adapters.official_notice import OfficialNoticeAdapter, _is_invalid_or_past_period
 from src.models import PortConfig, TerminalStatusEvent
 
 
@@ -37,6 +37,8 @@ class ChinaMSAAdapter(OfficialNoticeAdapter):
         terminal_name = self._detect_terminal(port, text)
         start_time, end_time = self._extract_time_range(text, port.timezone)
         now = datetime.now(ZoneInfo(port.timezone))
+        if _is_invalid_or_past_period(start_time, end_time, now):
+            return []
 
         return [
             TerminalStatusEvent(
