@@ -95,8 +95,8 @@ ports:
     aliases: ["NINGBO", "Ningbo", "宁波", "宁波舟山港", "寧波", "舟山港"]
     terminals: ["NBCT", "MSICT", "BLCT", "CMICT"]
     source_urls:
-      - "TODO: https://www.zj.msa.gov.cn/NB/ggfw/hxjg/index_17.html returned 404; replace with verified Ningbo notice URL"
-      - "TODO: https://www.zj.msa.gov.cn/NB/ggfw/hxtg/ returned 404; replace with verified Ningbo notice URL"
+      - "https://www.zj.msa.gov.cn/ZJ/wszw/bmcx/hsskcx/hxtg/"
+      - "https://www.zj.msa.gov.cn/ZJ/wszw/bmcx/hsskcx/hxjg/"
     enabled: true
 
   - country: China

@@ -48,6 +48,24 @@ def test_dedupe_events() -> None:
     assert dedupe_events([event, event]) == [event]
 
 
+def test_official_notice_extracts_zhejiang_detail_links() -> None:
+    html = """
+    <html><body>
+      <a href="./202606/t20260612_15299.html">宁波大榭关外码头疏浚作业</a>
+      <a href="https://www.zj.msa.gov.cn/ZJ/wszw/bmcx/hsskcx/hxjg/202606/t20260614_15318.html">浙航警</a>
+      <a href="/ZJ/zjmsa/ldhd/202605/t20260509_14364.html">领导活动</a>
+    </body></html>
+    """
+
+    assert OfficialNoticeAdapter._extract_detail_links(
+        "https://www.zj.msa.gov.cn/ZJ/wszw/bmcx/hsskcx/hxtg/",
+        html,
+    ) == [
+        "https://www.zj.msa.gov.cn/ZJ/wszw/bmcx/hsskcx/hxtg/202606/t20260612_15299.html",
+        "https://www.zj.msa.gov.cn/ZJ/wszw/bmcx/hsskcx/hxjg/202606/t20260614_15318.html",
+    ]
+
+
 @pytest.mark.asyncio
 async def test_official_notice_keeps_events_when_one_source_fails(tmp_path, monkeypatch) -> None:
     keywords = tmp_path / "keywords.yaml"

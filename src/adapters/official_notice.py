@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
+from urllib.parse import urljoin, urlparse
 from zoneinfo import ZoneInfo
 
 import yaml
@@ -10,6 +11,9 @@ from bs4 import BeautifulSoup
 from src.adapters.base import BaseAdapter
 from src.adapters.weather_classifier import WeatherClassifier
 from src.models import PortConfig, TerminalStatusEvent
+
+MAX_DETAIL_LINKS = 10
+NOTICE_DETAIL_PATH_MARKERS = ("/hsskcx/hxtg/", "/hsskcx/hxjg/")
 
 
 class OfficialNoticeAdapter(BaseAdapter):
@@ -34,9 +38,23 @@ class OfficialNoticeAdapter(BaseAdapter):
         for source_url in self.usable_source_urls(port):
             try:
                 html = await self.fetch(source_url)
-                events.extend(self.parse(port=port, html=html, source_url=source_url))
+                detail_links = self._extract_detail_links(source_url, html)
+                if detail_links:
+                    events.extend(await self._check_detail_links(port, detail_links))
+                else:
+                    events.extend(self.parse(port=port, html=html, source_url=source_url))
             except Exception as exc:  # noqa: BLE001 - one bad source must not discard the port.
                 self.record_failure(port.port_code, source_url, exc)
+        return events
+
+    async def _check_detail_links(self, port: PortConfig, detail_links: list[str]) -> list[TerminalStatusEvent]:
+        events: list[TerminalStatusEvent] = []
+        for detail_url in detail_links:
+            try:
+                html = await self.fetch(detail_url)
+                events.extend(self.parse(port=port, html=html, source_url=detail_url))
+            except Exception as exc:  # noqa: BLE001 - keep checking other notices.
+                self.record_failure(port.port_code, detail_url, exc)
         return events
 
     def parse(self, port: PortConfig, html: str, source_url: str) -> list[TerminalStatusEvent]:
@@ -99,6 +117,27 @@ class OfficialNoticeAdapter(BaseAdapter):
             return soup.title.string.strip()
         heading = soup.find(["h1", "h2", "h3"])
         return heading.get_text(" ", strip=True) if heading else None
+
+    @staticmethod
+    def _extract_detail_links(source_url: str, html: str) -> list[str]:
+        soup = BeautifulSoup(html, "lxml")
+        links: list[str] = []
+        seen: set[str] = set()
+        for anchor in soup.find_all("a", href=True):
+            href = str(anchor["href"]).strip()
+            full_url = urljoin(source_url, href)
+            path = urlparse(full_url).path
+            if not path.endswith(".html"):
+                continue
+            if not any(marker in path for marker in NOTICE_DETAIL_PATH_MARKERS):
+                continue
+            if full_url in seen:
+                continue
+            seen.add(full_url)
+            links.append(full_url)
+            if len(links) >= MAX_DETAIL_LINKS:
+                break
+        return links
 
     @staticmethod
     def _detect_terminal(port: PortConfig, text: str) -> str | None:
