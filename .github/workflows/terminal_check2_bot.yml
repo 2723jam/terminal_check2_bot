@@ -5,19 +5,10 @@ on:
     branches:
       - main
   schedule:
-    # Asia/Seoul 09:05-18:05 == UTC 00:05-09:05.
-    # Each UTC hour has primary minute 05 plus watchdog minutes 20/35/50.
-    # scripts.run_once maps github.event.schedule back to one target hourly slot.
-    - cron: "5,20,35,50 0 * * *"
-    - cron: "5,20,35,50 1 * * *"
-    - cron: "5,20,35,50 2 * * *"
-    - cron: "5,20,35,50 3 * * *"
-    - cron: "5,20,35,50 4 * * *"
-    - cron: "5,20,35,50 5 * * *"
-    - cron: "5,20,35,50 6 * * *"
-    - cron: "5,20,35,50 7 * * *"
-    - cron: "5,20,35,50 8 * * *"
-    - cron: "5,20,35,50 9 * * *"
+    # Queue watchdogs from 06:05 KST so delayed GitHub runs can still cover
+    # actual 09:05-18:05 KST hourly slots. State deduplicates each hour.
+    - cron: "5,20,35,50 21-23 * * *"
+    - cron: "5,20,35,50 0-9 * * *"
   workflow_dispatch:
 
 concurrency:

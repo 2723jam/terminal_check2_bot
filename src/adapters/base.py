@@ -8,6 +8,10 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 from src.models import CheckFailure, PortConfig, TerminalStatusEvent
 
 
+class SourceAccessError(RuntimeError):
+    pass
+
+
 class BaseAdapter(ABC):
     adapter_name = "base"
 
@@ -33,7 +37,18 @@ class BaseAdapter(ABC):
         async with httpx.AsyncClient(timeout=self.timeout_seconds, follow_redirects=True, headers=headers) as client:
             response = await client.get(url)
             response.raise_for_status()
-            return response.text
+            text = response.text
+            folded = text.casefold()
+            if response.status_code == 202:
+                raise SourceAccessError("source returned HTTP 202 anti-bot challenge")
+            if "request rejected" in folded and "support id" in folded:
+                raise SourceAccessError("source returned a request-rejected page")
+            if (
+                "just a moment..." in folded
+                or "enable javascript and cookies to continue" in folded
+            ):
+                raise SourceAccessError("source returned an anti-bot challenge page")
+            return text
 
     @abstractmethod
     async def check(self, port: PortConfig) -> list[TerminalStatusEvent]:

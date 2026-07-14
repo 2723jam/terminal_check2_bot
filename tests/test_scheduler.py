@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, time
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from src.scheduler import (
@@ -27,10 +28,13 @@ def test_schedule_runs_hourly_from_0905_to_1805() -> None:
 
 def test_github_actions_watchdog_slots_cover_each_hour() -> None:
     run_times = github_actions_watchdog_run_times()
-    assert len(run_times) == 40
-    assert run_times[:4] == [time(9, 5), time(9, 20), time(9, 35), time(9, 50)]
+    assert len(run_times) == 52
+    assert run_times[:4] == [time(6, 5), time(6, 20), time(6, 35), time(6, 50)]
     assert run_times[-4:] == [time(18, 5), time(18, 20), time(18, 35), time(18, 50)]
-    assert github_actions_watchdog_crons() == [f"5,20,35,50 {hour} * * *" for hour in range(10)]
+    assert github_actions_watchdog_crons() == [
+        "5,20,35,50 21-23 * * *",
+        "5,20,35,50 0-9 * * *",
+    ]
 
 
 def test_watchdog_runs_share_one_hourly_slot() -> None:
@@ -46,13 +50,31 @@ def test_schedule_slot_ignores_times_before_window() -> None:
     assert scheduled_slot_id(datetime(2026, 6, 5, 9, 4, tzinfo=timezone)) is None
 
 
-def test_github_schedule_expression_preserves_target_hour_when_delayed() -> None:
-    delayed_now = datetime(2026, 6, 5, 12, 33, tzinfo=UTC)
+def test_github_schedule_uses_actual_runtime_hour_when_delayed() -> None:
+    delayed_now = datetime(2026, 6, 5, 3, 33, tzinfo=UTC)
     assert (
-        scheduled_slot_id_from_github_schedule("5,20,35,50 0 * * *", delayed_now)
-        == "2026-06-05-0905-Asia/Seoul"
+        scheduled_slot_id_from_github_schedule("5,20,35,50 21-23 * * *", delayed_now)
+        == "2026-06-05-1205-Asia/Seoul"
     )
     assert (
-        scheduled_slot_id_from_github_schedule("5,20,35,50 9 * * *", delayed_now)
+        scheduled_slot_id_from_github_schedule("5,20,35,50 0-9 * * *", delayed_now)
+        == "2026-06-05-1205-Asia/Seoul"
+    )
+
+
+def test_delayed_watchdog_has_late_grace_for_final_slot() -> None:
+    late_now = datetime(2026, 6, 5, 12, 15, tzinfo=UTC)
+    assert (
+        scheduled_slot_id_from_github_schedule(None, late_now)
         == "2026-06-05-1805-Asia/Seoul"
     )
+
+
+def test_workflow_watchdog_crons_match_scheduler() -> None:
+    workflow = Path(
+        ".github/workflows/terminal_check2_bot.yml"
+    ).read_text(encoding="utf-8")
+
+    assert workflow.count("- cron:") == 2
+    for expression in github_actions_watchdog_crons():
+        assert f'- cron: "{expression}"' in workflow

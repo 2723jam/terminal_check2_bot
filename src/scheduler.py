@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, time
+from datetime import datetime, time
 from typing import Awaitable, Callable
 from zoneinfo import ZoneInfo
 
@@ -10,9 +10,10 @@ from apscheduler.triggers.cron import CronTrigger
 from src import BOT_NAME
 
 SCHEDULE_HOURS = tuple(range(9, 19))
-GITHUB_ACTIONS_UTC_HOURS = tuple(range(0, 10))
+GITHUB_ACTIONS_WATCHDOG_LOCAL_HOURS = tuple(range(6, 19))
 SCHEDULE_MINUTE = 5
 GITHUB_ACTIONS_WATCHDOG_MINUTES = (5, 20, 35, 50)
+GITHUB_ACTIONS_LATE_GRACE_END_HOUR = 22
 
 
 def scheduled_run_times() -> list[time]:
@@ -20,12 +21,19 @@ def scheduled_run_times() -> list[time]:
 
 
 def github_actions_watchdog_run_times() -> list[time]:
-    return [time(hour=hour, minute=minute) for hour in SCHEDULE_HOURS for minute in GITHUB_ACTIONS_WATCHDOG_MINUTES]
+    return [
+        time(hour=hour, minute=minute)
+        for hour in GITHUB_ACTIONS_WATCHDOG_LOCAL_HOURS
+        for minute in GITHUB_ACTIONS_WATCHDOG_MINUTES
+    ]
 
 
 def github_actions_watchdog_crons() -> list[str]:
     minutes = ",".join(str(minute) for minute in GITHUB_ACTIONS_WATCHDOG_MINUTES)
-    return [f"{minutes} {hour} * * *" for hour in GITHUB_ACTIONS_UTC_HOURS]
+    return [
+        f"{minutes} 21-23 * * *",
+        f"{minutes} 0-9 * * *",
+    ]
 
 
 def scheduled_slot_id(now: datetime, timezone_name: str = "Asia/Seoul") -> str | None:
@@ -45,24 +53,19 @@ def scheduled_slot_id_from_github_schedule(
     now: datetime,
     timezone_name: str = "Asia/Seoul",
 ) -> str | None:
-    if not schedule_expression:
-        return scheduled_slot_id(now, timezone_name)
+    del schedule_expression
+    slot = scheduled_slot_id(now, timezone_name)
+    if slot:
+        return slot
 
-    parts = schedule_expression.split()
-    if len(parts) != 5:
-        return scheduled_slot_id(now, timezone_name)
-
-    try:
-        utc_hour = int(parts[1])
-    except ValueError:
-        return scheduled_slot_id(now, timezone_name)
-
-    if utc_hour not in GITHUB_ACTIONS_UTC_HOURS:
-        return scheduled_slot_id(now, timezone_name)
-
-    utc_now = now.astimezone(UTC) if now.tzinfo else now.replace(tzinfo=UTC)
-    scheduled_utc = utc_now.replace(hour=utc_hour, minute=SCHEDULE_MINUTE, second=0, microsecond=0)
-    return scheduled_slot_id(scheduled_utc, timezone_name)
+    timezone = ZoneInfo(timezone_name)
+    local_now = now.replace(tzinfo=timezone) if now.tzinfo is None else now.astimezone(timezone)
+    if 19 <= local_now.hour < GITHUB_ACTIONS_LATE_GRACE_END_HOUR:
+        return (
+            f"{local_now:%Y-%m-%d}-"
+            f"{SCHEDULE_HOURS[-1]:02d}{SCHEDULE_MINUTE:02d}-{timezone_name}"
+        )
+    return None
 
 
 def build_scheduler(

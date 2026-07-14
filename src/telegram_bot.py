@@ -72,6 +72,13 @@ class TerminalCheckTelegramBot:
     async def handle_status(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         del context
         state = self.state_store.load()
+        failed_ports = sorted(
+            {
+                str(item.get("port_code"))
+                for item in state.get("recent_failures") or []
+                if item.get("port_code")
+            }
+        )
         text = "\n".join(
             [
                 f"봇명 : {BOT_NAME}",
@@ -81,6 +88,7 @@ class TerminalCheckTelegramBot:
                 f"최근 중단 이벤트 수 : {len(state.get('recent_events') or [])}",
                 f"최근 기상 우려 수 : {len(state.get('recent_weather_risks') or [])}",
                 f"최근 수집 실패 수 : {state.get('last_failure_count', 0)}",
+                f"\ucd5c\uadfc \uc2e4\ud328 \ud3ec\ud2b8 : {', '.join(failed_ports) or '-'}",
                 f"마지막 스케줄 슬롯 : {state.get('last_scheduled_slot') or '-'}",
             ]
         )

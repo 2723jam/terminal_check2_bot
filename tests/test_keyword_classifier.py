@@ -52,3 +52,19 @@ def test_english_operator_weather_keywords() -> None:
         result = c.classify_weather(text)
         assert result is not None
         assert result.detail == expected
+
+
+def test_vietnamese_weather_keyword_details() -> None:
+    c = classifier()
+    cases = [
+        ("m\u01b0a l\u1edbn", "heavy_rain"),
+        ("b\u00e3o", "typhoon"),
+        ("gi\u00f3 m\u1ea1nh", "strong_wind"),
+        ("s\u01b0\u01a1ng m\u00f9", "fog"),
+        ("bi\u1ec3n \u0111\u1ed9ng", "marine_bad_weather"),
+    ]
+
+    for text, expected in cases:
+        result = c.classify_weather(text)
+        assert result is not None
+        assert result.detail == expected

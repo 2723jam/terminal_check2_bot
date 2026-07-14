@@ -125,7 +125,7 @@ GitHub 저장소 화면에서:
 - `TERMINAL_CHECK2_WEATHER_RISK_ENABLED`: 기본값 `true`
 - `TERMINAL_CHECK2_WEATHER_RISK_HOURS`: 기본값 `12`
 
-워크플로우 파일은 `.github/workflows/terminal_check2_bot.yml`입니다. GitHub Actions cron은 UTC 기준이므로 서울 09:05~18:05에 해당하는 UTC 00~09시를 시간대별로 분리해 `5,20,35,50 {0..9} * * *` 형태로 설정했습니다. 각 시간대는 05분 정규 실행과 20/35/50분 watchdog 실행을 함께 갖습니다. `schedule` 이벤트에서는 `github.event.schedule`과 상태 파일의 `last_scheduled_slot`으로 서울 기준 같은 날짜/시간 슬롯당 1회만 실제 체크합니다. 중복 메시지는 `SEND_UNCHANGED_ALERTS=false`와 상태 hash로도 한 번 더 억제합니다. `workflow_dispatch`도 켜져 있어서 Actions 탭에서 수동 실행할 수 있습니다.
+GitHub Actions scheduled runs use two UTC watchdog ranges: `5,20,35,50 21-23 * * *` and `5,20,35,50 0-9 * * *` (06:05-18:50 KST). Because GitHub may delay cron jobs, the bot maps the actual start time to the current 09:05-18:05 KST slot, uses 19:00-21:59 as a grace period for the final 18:05 slot, and deduplicates with `last_scheduled_slot`. Pre-window runs exit without checking. `workflow_dispatch` and push runs execute immediately.
 
 ## 알림 형식
 
@@ -151,10 +151,12 @@ source_urls:
   - "TODO: verify terminal notice URL before enabling"
 ```
 
-실제 확인하지 못한 주소는 임의로 만들지 말고 `TODO:`로 남기세요. 어댑터는 `TODO:` 항목을 fetch하지 않습니다.
-
-Verified Shanghai/Ningbo feeds currently include Shanghai MSA, Shanghai
-Municipal Government port news, Zhejiang/Ningbo MSA notices, and Maersk's
+Verified direct feeds include Incheon SCON/ICPA, PNIT/HPNT/BPT, YGPA,
+Shandong MSA, Shanghai Municipal Government, Zhejiang/Ningbo MSA,
+Maersk advisories, Saigon Newport ePort, and Hai Phong Port.
+Listing adapters follow detail pages; HTTP 202 and request-rejected challenge pages are recorded as source failures.
+Shenzhen MSA is currently anti-bot protected, so SHEKOU retains Maersk as a fallback.
+Tianjin also uses Maersk while a verified official navigational-warning URL remains TODO.
 official advisories. Broad home/list pages are never treated as one notice;
 only selected detail pages are parsed as alert evidence.
 
@@ -194,8 +196,10 @@ only selected detail pages are parsed as alert evidence.
 
 ## 한계사항
 
+- Shenzhen MSA list/detail URLs currently return an HTTP 202 anti-bot challenge; SHEKOU retains the Maersk fallback.
+- Tianjin has no verified direct MSA list yet and uses Maersk while the official source remains TODO.
 - 일부 공식 사이트는 동적 렌더링, 방화벽, 403 응답, 로그인, 캡차로 인해 단순 HTTP fetch가 실패할 수 있습니다. 이런 경우 Playwright 기반 어댑터를 추가해야 합니다.
-- 현재 파서는 공지 목록/본문 HTML에서 텍스트를 추출해 키워드와 날짜를 잡는 범용 구현입니다. 운영 투입 전에는 각 출처별 목록 페이지와 상세 페이지 구조에 맞춘 전용 파서를 보강하는 것이 좋습니다.
+Several source-specific list/detail parsers are included, but site redesigns can still break selectors. An unsupported listing is recorded as a source failure instead of being treated as healthy.
 - `config/ports.yaml`의 `TODO:` URL은 검증 전이므로 fetch 대상에서 제외됩니다.
 
 ## 테스트

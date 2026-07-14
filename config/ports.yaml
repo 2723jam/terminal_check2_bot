@@ -13,8 +13,8 @@ ports:
     aliases: ["INCHEON", "Incheon", "인천", "인천항", "IPA"]
     terminals: ["SNCT", "HJIT", "E1CT", "ICT", "IFPC"]
     source_urls:
-      - "https://scon.icpa.or.kr/index.do"
-      - "https://www.icpa.or.kr/index.do"
+      - "https://scon.icpa.or.kr/article/list.do?menuKey=127&boardKey=0"
+      - "https://www.icpa.or.kr/article/list.do?menuKey=2269&boardKey=349"
     enabled: true
 
   - country: Korea
@@ -26,11 +26,11 @@ ports:
     aliases: ["BUSAN", "Busan", "부산", "부산항", "BPA"]
     terminals: ["PNIT", "BNCT", "HPNT", "PNC", "BPT", "HKT", "DPCT"]
     source_urls:
-      - "https://www.busanpa.com/index.bpa?menuCd=DOM_000000105001005000"
-      - "https://www.pnitl.com/homepage/"
-      - "https://www.bnctkorea.com/"
-      - "https://www.hpnt.co.kr/homepage/"
-      - "https://www.bptc.co.kr/"
+      - "https://www.pnitl.com/homepage/webpage/"
+      - "https://www.hpnt.co.kr/homepage/webpage/"
+      - "https://www.bptc.co.kr/kor/CMS/Board/Board.do?mCode=MN032"
+      - "TODO: verify BPA operations notice list URL before enabling"
+      - "TODO: verify BNCT official notice list URL before enabling"
     enabled: true
 
   - country: Korea
@@ -42,8 +42,8 @@ ports:
     aliases: ["GWANGYANG", "Gwangyang", "광양", "광양항", "YGPA"]
     terminals: ["KIT", "GWCT"]
     source_urls:
-      - "https://www.ygpa.or.kr/"
-      - "https://www.kitl.com/"
+      - "https://www.ygpa.or.kr/hmpg/ygpa/comu/news/anuc/bordContListPgng.do?bbs_no=213&miv_pageNo=1&miv_pageSize=10"
+      - "TODO: verify KIT official operations notice URL before enabling"
       - "TODO: verify GWCT official notice URL before enabling"
     enabled: true
 
@@ -56,7 +56,8 @@ ports:
     aliases: ["SHEKOU", "Shekou", "蛇口", "深圳蛇口", "深圳港", "招商局港口"]
     terminals: ["SCT", "CCT", "MCT"]
     source_urls:
-      - "https://www.sz.msa.gov.cn/bjjj/408.jhtml"
+      - "https://www.sz.msa.gov.cn/tzgg/index.jhtml?id=185"
+      - "https://www.maersk.com/news/category/advisories"
       - "TODO: verify Shenzhen/Shekou MSA navigational warning list URL before enabling"
     enabled: true
 
@@ -69,7 +70,8 @@ ports:
     aliases: ["QINGDAO", "Qingdao", "青岛", "青岛港", "青島", "山东港口青岛港"]
     terminals: ["QQCT", "QQCTN", "QQCTU", "QQCTUA", "DJK"]
     source_urls:
-      - "https://www.sd.msa.gov.cn/"
+      - "https://www.sd.msa.gov.cn/col/col5304/index.html"
+      - "https://www.maersk.com/news/category/advisories"
       - "TODO: https://www.msa.gov.cn/page/outter/weather.jsp returns 403 in GitHub Actions; replace with verified Qingdao notice URL"
     enabled: true
 
@@ -82,10 +84,9 @@ ports:
     aliases: ["SHANGHAI", "Shanghai", "上海", "上海港", "洋山", "外高桥"]
     terminals: ["YANGSHAN", "WGQ", "SIPG"]
     source_urls:
-      - "https://www.sh.msa.gov.cn/"
       - "https://www.shanghai.gov.cn/nw4411/index.html"
       - "https://www.maersk.com/news/category/advisories"
-      - "TODO: https://www.msa.gov.cn/page/outter/weather.jsp returns 403 in GitHub Actions; replace with verified Shanghai notice URL"
+      - "TODO: verify Shanghai MSA navigational warning list URL; central MSA list returns 403"
     enabled: true
 
   - country: China
@@ -112,8 +113,8 @@ ports:
     aliases: ["TIANJIN", "Tianjin", "天津", "天津港", "天津新港"]
     terminals: ["TCT", "FICT", "TACT", "TPCT"]
     source_urls:
-      - "TODO: verify Tianjin MSA official navigational warning URL before enabling"
-      - "TODO: https://www.msa.gov.cn/page/outter/weather.jsp returns 403 in GitHub Actions; replace with verified Tianjin notice URL"
+      - "https://www.maersk.com/news/category/advisories"
+      - "TODO: verify Tianjin MSA official navigational warning URL; central MSA list returns 403"
     enabled: true
 
   - country: Vietnam
@@ -125,7 +126,8 @@ ports:
     aliases: ["HOCHIMINH", "Ho Chi Minh", "HCMC", "Cat Lai", "Cát Lái", "Saigon", "Sài Gòn"]
     terminals: ["CAT LAI", "TAN CANG", "SP-ITC", "VICT"]
     source_urls:
-      - "https://saigonnewport.com.vn/"
+      - "https://eport.saigonnewport.com.vn/?page=1&search=cat%20lai"
+      - "TODO: Saigon Newport notice site currently returns a request-rejected page"
     enabled: true
 
   - country: Vietnam
@@ -137,5 +139,5 @@ ports:
     aliases: ["HAIPHONG", "Hai Phong", "Hải Phòng", "Lach Huyen", "Lạch Huyện"]
     terminals: ["HICT", "NAM DINH VU", "VIP GREEN", "DINH VU"]
     source_urls:
-      - "https://haiphongport.com.vn/"
+      - "https://haiphongport.com.vn/vi/tin-tuc"
     enabled: true

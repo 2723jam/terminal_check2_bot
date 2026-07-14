@@ -39,6 +39,9 @@ operation_stop_keywords:
   - "泊位暂停"
   - "停航"
   - "禁航"
+  - "\u7981\u9650\u822a"
+  - "\u9650\u5236\u822a\u884c"
+  - "\u5b9e\u65bd\u4ea4\u901a\u7ba1\u5236"
   - "临时管制"
   - "\u505c\u5de5\u5c01\u6e2f"
   - "\u5c01\u6e2f"
@@ -62,6 +65,14 @@ operation_stop_keywords:
   - "port operations suspended"
   - "container gate suspended"
   - "vessel calls suspended"
+  - "t\u1ea1m d\u1eebng khai th\u00e1c"
+  - "t\u1ea1m ng\u1eebng khai th\u00e1c"
+  - "ng\u1eebng khai th\u00e1c"
+  - "\u0111\u00f3ng c\u1eeda c\u1ea3ng"
+  - "t\u1ea1m d\u1eebng ho\u1ea1t \u0111\u1ed9ng"
+  - "t\u1ea1m ng\u1eebng ho\u1ea1t \u0111\u1ed9ng"
+  - "h\u1ea1n ch\u1ebf khai th\u00e1c"
+  - "t\u1ea1m d\u1eebng ti\u1ebfp nh\u1eadn"
 
 port_operation_context_keywords:
   - "\u6e2f\u53e3"
@@ -79,6 +90,9 @@ port_operation_context_keywords:
   - "\u751f\u4ea7\u4f5c\u4e1a\u8239\u8236"
   - "\u6c34\u5de5\u9879\u76ee"
   - "\u6d89\u6c34\u5de5\u7a0b"
+  - "\u822a\u884c"
+  - "\u7981\u9650\u822a"
+  - "\u4ea4\u901a\u7ba1\u5236"
   - "port "
   - "ports "
   - "port operations"
@@ -91,6 +105,12 @@ port_operation_context_keywords:
   - "cargo"
   - "loading"
   - "unloading"
+  - "c\u1ea3ng"
+  - "b\u1ebfn"
+  - "t\u00e0u"
+  - "khai th\u00e1c"
+  - "ho\u1ea1t \u0111\u1ed9ng"
+  - "container"
 
 uncertain_end_keywords:
   - "미정"
@@ -132,6 +152,8 @@ reason_keywords:
 
 china_weather_keywords:
   heavy_rain:
+    - "m\u01b0a l\u1edbn"
+    - "m\u01b0a to"
     - "暴雨"
     - "大暴雨"
     - "特大暴雨"
@@ -146,6 +168,8 @@ china_weather_keywords:
     - "heavy rain"
     - "torrential rain"
   typhoon:
+    - "b\u00e3o"
+    - "\u00e1p th\u1ea5p nhi\u1ec7t \u0111\u1edbi"
     - "台风"
     - "热带气旋"
     - "热带低压"
@@ -173,6 +197,7 @@ china_weather_keywords:
     - "heavy snow"
     - "blizzard"
   strong_wind:
+    - "gi\u00f3 m\u1ea1nh"
     - "大风"
     - "海上大风"
     - "阵风"
@@ -189,6 +214,7 @@ china_weather_keywords:
     - "gale"
     - "high winds"
   fog:
+    - "s\u01b0\u01a1ng m\u00f9"
     - "大雾"
     - "浓雾"
     - "强浓雾"
@@ -202,6 +228,8 @@ china_weather_keywords:
     - "dense fog"
     - "low visibility"
   marine_bad_weather:
+    - "bi\u1ec3n \u0111\u1ed9ng"
+    - "s\u00f3ng l\u1edbn"
     - "风暴潮"
     - "海浪"
     - "大浪"

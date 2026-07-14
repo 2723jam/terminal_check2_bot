@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -8,9 +9,13 @@ from src.adapters.official_notice import (
     OfficialNoticeAdapter,
     _is_stale_open_event,
 )
-from src.aggregator import dedupe_events
+from src.aggregator import (
+    WEATHER_RISK_CONCURRENCY,
+    PortStatusAggregator,
+    dedupe_events,
+)
 from src.message_formatter import format_events
-from src.models import PortConfig, TerminalStatusEvent
+from src.models import AggregationResult, PortConfig, TerminalStatusEvent
 
 
 def make_event(country: str, port_code: str, hour: int) -> TerminalStatusEvent:
@@ -270,6 +275,25 @@ def test_broad_official_and_operator_lists_keep_only_relevant_details() -> None:
         maersk_html,
     ) == ["https://www.maersk.com/news/articles/2026/07/10/typhoon-update"]
 
+    qingdao = port.model_copy(
+        update={"port_code": "QINGDAO", "aliases": ["QINGDAO"]}
+    )
+    assert adapter._extract_detail_links(
+        qingdao,
+        "https://www.maersk.com/news/category/advisories",
+        maersk_html,
+    ) == []
+    unrelated_article = """
+    <div class="p-section__article__body">
+      Shanghai port operations suspended due to typhoon.
+    </div>
+    """
+    assert adapter.parse(
+        qingdao,
+        unrelated_article,
+        "https://www.maersk.com/news/articles/2026/07/10/typhoon-update",
+    ) == []
+
     shanghai_html = (
         "<html><body>"
         "<a href='/nw4411/20260712/unrelated.html'>"
@@ -323,3 +347,244 @@ def test_open_ended_notice_expires_after_freshness_window() -> None:
         published, None, published + timedelta(hours=36, seconds=1)
     )
     assert not _is_stale_open_event(published, None, published + timedelta(hours=35))
+
+
+def test_terminal_notice_lists_generate_verified_detail_urls() -> None:
+    adapter = OfficialNoticeAdapter("config/keywords.yaml")
+    port = PortConfig(
+        country="Korea",
+        port_code="BUSAN",
+        display_name="BUSAN",
+        timezone="Asia/Seoul",
+        aliases=["BUSAN"],
+        terminals=["PNIT"],
+        source_urls=[],
+    )
+    pnit_html = """
+    <script>
+      const noticeList = [
+        {"BID":"noti_pnit","SEQ":"5525","TITLE":"PNIT operation suspended"}
+      ];
+    </script>
+    """
+    assert adapter._extract_detail_links(
+        port,
+        "https://www.pnitl.com/homepage/webpage/",
+        pnit_html,
+    ) == [
+        "https://www.pnitl.com/homepage/webpage/cust_noti.jsp?"
+        "BID=noti_pnit&LTYPE=VIEW&seq=5525"
+    ]
+
+    incheon = port.model_copy(
+        update={"port_code": "INCHEON", "aliases": ["INCHEON", "IPA"]}
+    )
+    scon_html = """
+    <a href="#" onclick="articleView('2800')">IPA terminal operation suspended</a>
+    """
+    assert adapter._extract_detail_links(
+        incheon,
+        "https://scon.icpa.or.kr/article/list.do?menuKey=127&boardKey=0",
+        scon_html,
+    ) == [
+        "https://scon.icpa.or.kr/article/view.do?"
+        "articleKey=2800&boardKey=0&menuKey=127&currentPageNo=1"
+    ]
+
+    gwangyang = port.model_copy(
+        update={"port_code": "GWANGYANG", "aliases": ["GWANGYANG", "YGPA"]}
+    )
+    ygpa_html = """
+    <a href="#" onclick="contDetail('ABC-123')">YGPA port operation suspended</a>
+    """
+    assert adapter._extract_detail_links(
+        gwangyang,
+        "https://www.ygpa.or.kr/hmpg/ygpa/comu/news/anuc/"
+        "bordContListPgng.do?bbs_no=213&miv_pageNo=1&miv_pageSize=10",
+        ygpa_html,
+    ) == [
+        "https://www.ygpa.or.kr/hmpg/ygpa/comu/news/anuc/"
+        "bordContDetail.do?mode=W&bbs_no=213&pst_no=ABC-123"
+    ]
+
+
+def test_normal_notice_lists_generate_verified_detail_urls() -> None:
+    adapter = OfficialNoticeAdapter("config/keywords.yaml")
+    qingdao = PortConfig(
+        country="China",
+        port_code="QINGDAO",
+        display_name="QINGDAO",
+        timezone="Asia/Shanghai",
+        aliases=["QINGDAO"],
+        terminals=[],
+        source_urls=[],
+    )
+    qingdao_html = """
+    <script type="text/xml"><datastore>
+      <a href="/art/2026/7/14/art_5301_12345.html">Navigation warning</a>
+    </datastore></script>
+    """
+    assert adapter._extract_detail_links(
+        qingdao,
+        "https://www.sd.msa.gov.cn/col/col5301/index.html",
+        qingdao_html,
+    ) == ["https://www.sd.msa.gov.cn/art/2026/7/14/art_5301_12345.html"]
+
+    busan = qingdao.model_copy(
+        update={"country": "Korea", "port_code": "BUSAN", "aliases": ["BUSAN"]}
+    )
+    bpt_html = (
+        '<a href="/kor/CMS/Board/Board.do?mCode=MN032&amp;mode=view&amp;'
+        'mgr_seq=1&amp;board_seq=1234">BPT notice</a>'
+    )
+    assert adapter._extract_detail_links(
+        busan,
+        "https://www.bptc.co.kr/kor/CMS/Board/Board.do?mCode=MN032",
+        bpt_html,
+    ) == [
+        "https://www.bptc.co.kr/kor/CMS/Board/Board.do?"
+        "mCode=MN032&mode=view&mgr_seq=1&board_seq=1234"
+    ]
+
+
+def test_precise_notice_body_ignores_navigation_stop_words() -> None:
+    adapter = OfficialNoticeAdapter("config/keywords.yaml")
+    port = PortConfig(
+        country="Korea",
+        port_code="BUSAN",
+        display_name="BUSAN",
+        timezone="Asia/Seoul",
+        aliases=["BUSAN"],
+        terminals=[],
+        source_urls=[],
+    )
+    html = """
+    <html><body>
+      <nav>BUSAN operation suspended archive</nav>
+      <div id="board_view">Routine terminal information only.</div>
+    </body></html>
+    """
+    assert adapter.parse(port, html, "https://example.com/notice") == []
+
+
+def test_visible_board_date_is_used_as_publication_time() -> None:
+    published = OfficialNoticeAdapter._extract_published_at(
+        "<div id='board_view'>\ub4f1\ub85d\uc77c : 2026-07-14 09:30</div>",
+        "Asia/Seoul",
+    )
+    assert published == datetime(
+        2026,
+        7,
+        14,
+        9,
+        30,
+        tzinfo=ZoneInfo("Asia/Seoul"),
+    )
+
+
+def test_saigon_eport_inline_notices_are_split_into_documents() -> None:
+    html = """
+    <div class="row">
+      Port notice 14/07/2026 <i id="notice-1">Xem chi tiet</i>
+    </div>
+    <div class="row snp-card" id="notice-1div">
+      Terminal operation suspended due to typhoon.
+    </div>
+    """
+    documents = OfficialNoticeAdapter._extract_inline_notice_documents(
+        "https://eport.saigonnewport.com.vn/?page=1&search=cat%20lai",
+        html,
+    )
+    assert len(documents) == 1
+    assert documents[0][1].endswith("#notice-1")
+    assert 'content="2026-07-14"' in documents[0][0]
+
+
+@pytest.mark.asyncio
+async def test_port_without_usable_source_is_reported() -> None:
+    port = PortConfig(
+        country="China",
+        port_code="TIANJIN",
+        display_name="TIANJIN",
+        timezone="Asia/Shanghai",
+        aliases=["TIANJIN"],
+        terminals=[],
+        source_urls=["TODO: official source"],
+    )
+    aggregator = PortStatusAggregator([port], "config/keywords.yaml")
+    result = await aggregator._check_port(port)
+
+    assert result.events == []
+    assert len(result.failures) == 1
+    assert result.failures[0].error == "no usable source URL configured"
+
+
+@pytest.mark.asyncio
+async def test_weather_checks_are_bounded_and_concurrent(monkeypatch) -> None:
+    ports = [
+        PortConfig(
+            country="Korea",
+            port_code=f"PORT-{index}",
+            display_name=f"PORT-{index}",
+            timezone="Asia/Seoul",
+            aliases=[],
+            terminals=[],
+            source_urls=[],
+        )
+        for index in range(10)
+    ]
+    aggregator = PortStatusAggregator(ports, "config/keywords.yaml")
+    active = 0
+    max_active = 0
+
+    async def fake_check(port: PortConfig) -> AggregationResult:
+        nonlocal active, max_active
+        del port
+        active += 1
+        max_active = max(max_active, active)
+        await asyncio.sleep(0.01)
+        active -= 1
+        return AggregationResult()
+
+    monkeypatch.setattr(aggregator, "_check_weather_risk", fake_check)
+    results = await aggregator._collect_weather_risks()
+
+    assert len(results) == 10
+    assert max_active == WEATHER_RISK_CONCURRENCY
+
+
+def test_qingdao_explicit_navigation_restriction_is_alert_evidence() -> None:
+    port = PortConfig(
+        country="China",
+        port_code="QINGDAO",
+        display_name="QINGDAO",
+        timezone="Asia/Shanghai",
+        aliases=["QINGDAO", "\u9752\u5c9b", "\u9752\u5c9b\u6e2f"],
+        terminals=[],
+        source_urls=[],
+    )
+    adapter = ChinaMSAAdapter("config/keywords.yaml")
+    now = datetime.now(ZoneInfo("Asia/Shanghai")).replace(microsecond=0)
+    notice_text = (
+        "\u9752\u5c9b\u6d77\u4e8b\u5c40\u53d1\u5e03\u6d77\u4e0a\u98ce\u9669\u9884\u8b66\uff0c"
+        "\u53d7\u53f0\u98ce\u5f71\u54cd\uff0c"
+        "\u5404\u5355\u4f4d\u4e25\u683c\u5b9e\u65bd\u7981\u9650\u822a\u63aa\u65bd\uff0c"
+        "\u6062\u590d\u65f6\u95f4\u53e6\u884c\u901a\u77e5\u3002"
+    )
+    html = (
+        "<html><head>"
+        f"<meta name='ArticleTitle' content='{notice_text}'>"
+        f"<meta name='PubDate' content='{now:%Y-%m-%d %H:%M}'>"
+        "</head><body><div class='article'><div class='view'>"
+        f"{notice_text}"
+        "</div></div></body></html>"
+    )
+
+    events = adapter.parse(
+        port,
+        html,
+        "https://www.sd.msa.gov.cn/art/example.html",
+    )
+
+    assert len(events) == 1
+    assert events[0].reason_detail == "typhoon"

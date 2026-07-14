@@ -12,6 +12,8 @@ from src.adapters.weather_risk import WeatherRiskAdapter
 from src.message_formatter import sort_events
 from src.models import AggregationResult, CheckFailure, PortConfig, TerminalStatusEvent, WeatherRiskEvent
 
+WEATHER_RISK_CONCURRENCY = 5
+
 
 class PortStatusAggregator:
     def __init__(
@@ -53,6 +55,17 @@ class PortStatusAggregator:
 
     async def _check_port(self, port: PortConfig) -> AggregationResult:
         adapter = self._adapter_for_port(port)
+        if not BaseAdapter.usable_source_urls(port):
+            return AggregationResult(
+                events=[],
+                failures=[
+                    CheckFailure(
+                        port_code=port.port_code,
+                        source_url=None,
+                        error="no usable source URL configured",
+                    )
+                ],
+            )
         try:
             events = await adapter.check(port)
             return AggregationResult(events=events, failures=adapter.last_failures)
@@ -60,7 +73,14 @@ class PortStatusAggregator:
             logger.exception("port check failed: {}", port.port_code)
             return AggregationResult(
                 events=[],
-                failures=[*adapter.last_failures, CheckFailure(port_code=port.port_code, source_url=None, error=str(exc))],
+                failures=[
+                    *adapter.last_failures,
+                    CheckFailure(
+                        port_code=port.port_code,
+                        source_url=None,
+                        error=str(exc),
+                    ),
+                ],
             )
 
     def _adapter_for_port(self, port: PortConfig) -> BaseAdapter:
@@ -72,11 +92,13 @@ class PortStatusAggregator:
         )
 
     async def _collect_weather_risks(self) -> list[AggregationResult]:
-        results: list[AggregationResult] = []
-        for port in self.ports:
-            results.append(await self._check_weather_risk(port))
-            await asyncio.sleep(0.5)
-        return results
+        semaphore = asyncio.Semaphore(WEATHER_RISK_CONCURRENCY)
+
+        async def check_one(port: PortConfig) -> AggregationResult:
+            async with semaphore:
+                return await self._check_weather_risk(port)
+
+        return list(await asyncio.gather(*(check_one(port) for port in self.ports)))
 
     async def _check_weather_risk(self, port: PortConfig) -> AggregationResult:
         adapter = WeatherRiskAdapter(

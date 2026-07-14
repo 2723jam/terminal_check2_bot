@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import html as html_lib
 import json
 import re
 from datetime import datetime, timedelta
-from urllib.parse import urljoin, urlparse
+from urllib.parse import parse_qs, urlencode, urljoin, urlparse
 from zoneinfo import ZoneInfo
 
 import yaml
@@ -25,15 +26,27 @@ NOTICE_DETAIL_PATH_MARKERS = (
     "/nw4411/",
     "/nw17239/",
     "/news/articles/",
+    "/article/view.do",
+    "/CMS/Board/Board.do",
+    "/bordContDetail.do",
+    "/art/",
+    "/tzgg/",
+    "/jtfwxx/",
+    "/yjgl/",
+    "/vi/tin-tuc/",
 )
-BROAD_DETAIL_PATH_MARKERS = ("/nw4411/", "/nw17239/", "/news/articles/")
 ARTICLE_BODY_SELECTORS = (
+    ".inline-notice",
     "#ivs_content",
     ".p-section__article__body",
     ".article .view",
     ".TRS_UEDITOR",
     ".Article_content",
-    "article",
+    ".notice_view",
+    "#board_view",
+    ".board.board-detail",
+    "#board-wrap",
+    "#boardContents",
 )
 
 
@@ -78,6 +91,11 @@ class OfficialNoticeAdapter(BaseAdapter):
         for source_url in self.usable_source_urls(port):
             try:
                 html = await self.fetch(source_url)
+                inline_notices = self._extract_inline_notice_documents(source_url, html)
+                if inline_notices:
+                    for notice_html, notice_url in inline_notices:
+                        events.extend(self.parse(port, notice_html, notice_url))
+                    continue
                 detail_links = [
                     url
                     for url in self._extract_detail_links(port, source_url, html)
@@ -86,7 +104,13 @@ class OfficialNoticeAdapter(BaseAdapter):
                 if detail_links:
                     seen_detail_urls.update(detail_links)
                     events.extend(await self._check_detail_links(port, detail_links))
-                elif port.country == "China" and self._looks_like_listing_page(html):
+                elif self._looks_like_listing_page(html):
+                    if not self._source_listing_supported(source_url):
+                        self.record_failure(
+                            port.port_code,
+                            source_url,
+                            RuntimeError("listing page has no supported notice-detail parser"),
+                        )
                     continue
                 else:
                     events.extend(self.parse(port=port, html=html, source_url=source_url))
@@ -112,6 +136,11 @@ class OfficialNoticeAdapter(BaseAdapter):
     def parse(self, port: PortConfig, html: str, source_url: str) -> list[TerminalStatusEvent]:
         text = self._extract_notice_text(html)
         if not text or not self._has_operation_stop_evidence(text):
+            return []
+        if self._requires_explicit_port_identity(source_url) and not self._contains_any(
+            text,
+            [*port.aliases, *port.terminals],
+        ):
             return []
 
         classification = (
@@ -171,16 +200,20 @@ class OfficialNoticeAdapter(BaseAdapter):
         for tag in soup(["script", "style", "noscript"]):
             tag.decompose()
 
-        candidates: list[str] = []
+        body = ""
         for selector in ARTICLE_BODY_SELECTORS:
-            for node in soup.select(selector):
-                text = re.sub(r"\s+", " ", node.get_text(" ", strip=True)).strip()
-                if text:
-                    candidates.append(text)
-
-        body = max(candidates, key=len) if candidates else re.sub(
-            r"\s+", " ", soup.get_text(" ", strip=True)
-        ).strip()
+            candidates = [
+                re.sub(r"\s+", " ", node.get_text(" ", strip=True)).strip()
+                for node in soup.select(selector)
+                if node.get_text(" ", strip=True)
+            ]
+            if candidates:
+                body = max(candidates, key=len)
+                break
+        if not body:
+            body = re.sub(
+                r"\s+", " ", soup.get_text(" ", strip=True)
+            ).strip()
         title = cls._extract_title(html)
         if title and title.casefold() not in body.casefold():
             return f"{title} {body}".strip()
@@ -193,7 +226,7 @@ class OfficialNoticeAdapter(BaseAdapter):
             key = str(meta.get("name") or meta.get("property") or "").casefold()
             if key == "articletitle" and meta.get("content"):
                 return False
-        if any(soup.select_one(selector) for selector in ARTICLE_BODY_SELECTORS[:-1]):
+        if any(soup.select_one(selector) for selector in ARTICLE_BODY_SELECTORS):
             return False
         return len(soup.find_all("a", href=True)) >= 10
 
@@ -205,6 +238,17 @@ class OfficialNoticeAdapter(BaseAdapter):
             if key in {"articletitle", "og:title", "twitter:title"} and meta.get("content"):
                 return str(meta["content"]).strip()
         heading = soup.find(["h1", "h2", "h3"])
+        for selector in (
+            ".notice_view h3",
+            ".notice_view h4",
+            "#board_view .board_title",
+            ".board-detail .title",
+            ".board-view-title .vtitle",
+        ):
+            node = soup.select_one(selector)
+            if node:
+                return node.get_text(" ", strip=True)
+
         if heading:
             return heading.get_text(" ", strip=True)
         if soup.title and soup.title.string:
@@ -220,24 +264,244 @@ class OfficialNoticeAdapter(BaseAdapter):
         if source_path.casefold() == "/nb":
             allowed_markers = ("/NB/hsyw/",)
 
-        for index, anchor in enumerate(soup.find_all("a", href=True)):
+        synthetic_links = [
+            *self._extract_embedded_terminal_notice_links(source_url, html),
+            *self._extract_embedded_datastore_links(source_url, html),
+            *self._extract_javascript_detail_links(source_url, soup),
+        ]
+        for index, (anchor_text, full_url) in enumerate(synthetic_links):
+            if full_url in seen:
+                continue
+            relevant = self._link_is_relevant(port, anchor_text)
+            if self._requires_explicit_port_identity(source_url):
+                relevant = self._link_names_port(port, anchor_text)
+            seen.add(full_url)
+            candidates.append((0 if relevant else 1, index, full_url))
+
+        offset = len(synthetic_links)
+        for index, anchor in enumerate(soup.find_all("a", href=True), start=offset):
             href = str(anchor["href"]).strip()
             full_url = urljoin(source_url, href)
             path = urlparse(full_url).path
-            marker = next((item for item in allowed_markers if item.casefold() in path.casefold()), None)
-            if marker is None or not _is_detail_path(path):
+            marker = next(
+                (item for item in allowed_markers if item.casefold() in path.casefold()),
+                None,
+            )
+            if marker is None or not _is_detail_url(full_url):
                 continue
             if full_url in seen:
                 continue
             anchor_text = re.sub(r"\s+", " ", anchor.get_text(" ", strip=True)).strip()
             relevant = self._link_is_relevant(port, anchor_text)
-            if marker in BROAD_DETAIL_PATH_MARKERS and not relevant:
+            if self._requires_explicit_port_identity(source_url):
+                relevant = self._link_names_port(port, anchor_text)
+            if self._requires_link_relevance(source_url) and not relevant:
                 continue
             seen.add(full_url)
             candidates.append((0 if relevant else 1, index, full_url))
 
         candidates.sort(key=lambda item: (item[0], item[1]))
         return [url for _, _, url in candidates[:MAX_DETAIL_LINKS]]
+
+    @staticmethod
+    def _requires_explicit_port_identity(source_url: str) -> bool:
+        host = urlparse(source_url).netloc.casefold()
+        return host in {"www.maersk.com", "maersk.com"}
+
+    @staticmethod
+    def _requires_link_relevance(source_url: str) -> bool:
+        parsed = urlparse(source_url)
+        host = parsed.netloc.casefold()
+        return host in {
+            "www.shanghai.gov.cn",
+            "www.maersk.com",
+            "maersk.com",
+            "haiphongport.com.vn",
+            "www.sz.msa.gov.cn",
+        }
+
+    @staticmethod
+    def _source_listing_supported(source_url: str) -> bool:
+        parsed = urlparse(source_url)
+        host = parsed.netloc.casefold()
+        path = parsed.path.casefold()
+        return (
+            (host.endswith("icpa.or.kr") and path.endswith("/article/list.do"))
+            or (host in {"www.pnitl.com", "www.hpnt.co.kr"} and path.endswith("/homepage/webpage/"))
+            or (host == "www.bptc.co.kr" and path.endswith("/cms/board/board.do"))
+            or (host == "www.ygpa.or.kr" and path.endswith("/bordcontlistpgng.do"))
+            or (
+                host == "www.sd.msa.gov.cn"
+                and any(column in path for column in ("/col/col5301/", "/col/col5304/"))
+            )
+            or (host == "www.sz.msa.gov.cn" and path.endswith("/tzgg/index.jhtml"))
+            or (host == "www.shanghai.gov.cn" and path.endswith("/index.html"))
+            or (
+                host.endswith("zj.msa.gov.cn")
+                and any(marker.casefold() in path for marker in NOTICE_DETAIL_PATH_MARKERS[:3])
+            )
+            or (host in {"www.maersk.com", "maersk.com"} and "/news/category/" in path)
+            or (host == "haiphongport.com.vn" and path.rstrip("/") == "/vi/tin-tuc")
+            or host == "eport.saigonnewport.com.vn"
+            or (host.endswith("zj.msa.gov.cn") and path.rstrip("/") == "/nb")
+        )
+
+    @staticmethod
+    def _extract_embedded_terminal_notice_links(
+        source_url: str,
+        html: str,
+    ) -> list[tuple[str, str]]:
+        host = urlparse(source_url).netloc.casefold()
+        if host not in {"www.pnitl.com", "www.hpnt.co.kr"}:
+            return []
+
+        match = re.search(r"const\s+noticeList\s*=\s*(\[.*?\]);", html, re.DOTALL)
+        if not match:
+            return []
+        try:
+            payload = json.loads(match.group(1))
+        except (TypeError, ValueError):
+            return []
+
+        links: list[tuple[str, str]] = []
+        detail_url = urljoin(source_url, "cust_noti.jsp")
+        for item in payload if isinstance(payload, list) else []:
+            if not isinstance(item, dict):
+                continue
+            bid = str(item.get("BID") or "").strip().casefold()
+            seq = str(item.get("SEQ") or "").strip()
+            if not bid or not seq:
+                continue
+            title = str(item.get("TITLE") or "").strip()
+            query = urlencode({"BID": bid, "LTYPE": "VIEW", "seq": seq})
+            links.append((title, f"{detail_url}?{query}"))
+        return links
+
+    @staticmethod
+    def _extract_embedded_datastore_links(
+        source_url: str,
+        html: str,
+    ) -> list[tuple[str, str]]:
+        if urlparse(source_url).netloc.casefold() != "www.sd.msa.gov.cn":
+            return []
+
+        pattern = re.compile(
+            r"<a\b[^>]*\bhref\s*=\s*(?P<quote>[\"'])"
+            r"(?P<href>/art/[^\"']+\.html)(?P=quote)[^>]*>.*?</a>",
+            re.IGNORECASE | re.DOTALL,
+        )
+        links: list[tuple[str, str]] = []
+        for match in pattern.finditer(html):
+            anchor = BeautifulSoup(match.group(0), "lxml").find("a")
+            if anchor is None:
+                continue
+            title = str(anchor.get("title") or anchor.get_text(" ", strip=True)).strip()
+            href = html_lib.unescape(match.group("href"))
+            links.append((title, urljoin(source_url, href)))
+        return links
+
+    @staticmethod
+    def _extract_javascript_detail_links(
+        source_url: str,
+        soup: BeautifulSoup,
+    ) -> list[tuple[str, str]]:
+        parsed = urlparse(source_url)
+        host = parsed.netloc.casefold()
+        source_query = parse_qs(parsed.query)
+        links: list[tuple[str, str]] = []
+
+        if host.endswith("icpa.or.kr") and parsed.path.casefold().endswith("/article/list.do"):
+            menu_key = (source_query.get("menuKey") or [""])[0]
+            board_key = (source_query.get("boardKey") or [""])[0]
+            detail_path = parsed.path.rsplit("/", 1)[0] + "/view.do"
+            for anchor in soup.find_all("a"):
+                action = f"{anchor.get('onclick') or ''} {anchor.get('href') or ''}"
+                match = re.search(r"articleView\(['\"]?(\d+)", action, re.IGNORECASE)
+                if not match:
+                    continue
+                query = urlencode(
+                    {
+                        "articleKey": match.group(1),
+                        "boardKey": board_key,
+                        "menuKey": menu_key,
+                        "currentPageNo": "1",
+                    }
+                )
+                title = re.sub(r"\s+", " ", anchor.get_text(" ", strip=True)).strip()
+                links.append((title, parsed._replace(path=detail_path, query=query, fragment="").geturl()))
+
+        if host == "www.ygpa.or.kr" and parsed.path.casefold().endswith("/bordcontlistpgng.do"):
+            bbs_no = (source_query.get("bbs_no") or [""])[0]
+            detail_path = re.sub(
+                r"bordContListPgng\.do$",
+                "bordContDetail.do",
+                parsed.path,
+                flags=re.IGNORECASE,
+            )
+            for anchor in soup.find_all("a"):
+                action = f"{anchor.get('onclick') or ''} {anchor.get('href') or ''}"
+                match = re.search(r"contDetail\(['\"]([A-F0-9-]+)", action, re.IGNORECASE)
+                if not match:
+                    continue
+                query = urlencode(
+                    {"mode": "W", "bbs_no": bbs_no, "pst_no": match.group(1)}
+                )
+                title = re.sub(r"\s+", " ", anchor.get_text(" ", strip=True)).strip()
+                links.append((title, parsed._replace(path=detail_path, query=query, fragment="").geturl()))
+
+        return links
+
+    @staticmethod
+    def _extract_inline_notice_documents(
+        source_url: str,
+        html: str,
+    ) -> list[tuple[str, str]]:
+        if urlparse(source_url).netloc.casefold() != "eport.saigonnewport.com.vn":
+            return []
+
+        soup = BeautifulSoup(html, "lxml")
+        documents: list[tuple[str, str]] = []
+        for detail in soup.select("div.row.snp-card[id$='div']"):
+            detail_id = str(detail.get("id") or "")
+            notice_id = detail_id[:-3]
+            if not notice_id:
+                continue
+            toggle = soup.find(id=notice_id)
+            header = toggle.find_parent("div", class_="row") if toggle else None
+            if header is None:
+                header = detail.find_previous_sibling("div", class_="row")
+            if header is None:
+                continue
+
+            header_text = re.sub(r"\s+", " ", header.get_text(" ", strip=True)).strip()
+            date_match = re.search(r"\b(\d{2})/(\d{2})/(\d{4})\b", header_text)
+            title = re.sub(r"\b\d{2}/\d{2}/\d{4}\b", "", header_text)
+            title = re.sub(r"Xem chi \S+", "", title).strip()
+            body = re.sub(r"\s+", " ", detail.get_text(" ", strip=True)).strip()
+            if not title or not body:
+                continue
+
+            published_meta = ""
+            if date_match:
+                day, month, year = date_match.groups()
+                published_meta = (
+                    f'<meta name="publishdate" content="{year}-{month}-{day}">'
+                )
+            notice_html = (
+                "<html><head>"
+                f"<title>{html_lib.escape(title)}</title>"
+                f"{published_meta}</head><body>"
+                f'<div class="inline-notice">{html_lib.escape(title)} '
+                f"{html_lib.escape(body)}</div></body></html>"
+            )
+            documents.append((notice_html, f"{source_url}#{notice_id}"))
+        return documents
+
+    def _link_names_port(self, port: PortConfig, text: str) -> bool:
+        return self._contains_any(
+            text,
+            [*port.aliases, *port.terminals],
+        )
 
     def _link_is_relevant(self, port: PortConfig, text: str) -> bool:
         return self._contains_any(
@@ -371,6 +635,21 @@ class OfficialNoticeAdapter(BaseAdapter):
         for node in soup.find_all("time", datetime=True):
             values.append(str(node["datetime"]))
 
+        visible_text = re.sub(r"\s+", " ", soup.get_text(" ", strip=True))
+        values.extend(
+            match.group("value")
+            for match in _VISIBLE_PUBLISHED_DATE_PATTERN.finditer(visible_text)
+        )
+        if not values:
+            for selector in (".notice_view", "#board_view", ".board.board-detail", ".board-view-head"):
+                node = soup.select_one(selector)
+                if node is None:
+                    continue
+                match = _NUMERIC_DATE_PATTERN.search(node.get_text(" ", strip=True))
+                if match:
+                    values.append(match.group(0))
+                    break
+
         tz = ZoneInfo(timezone_name)
         for value in values:
             try:
@@ -399,13 +678,32 @@ _RANGE_SEPARATOR_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+_VISIBLE_PUBLISHED_DATE_PATTERN = re.compile(
+    r"(?:\ub4f1\ub85d\uc77c|\uc791\uc131\uc77c|\uac8c\uc2dc\uc77c|"
+    r"\u53d1\u5e03\u65f6\u95f4|\u53d1\u5e03\u65e5\u671f|\u65e5\u671f|Published|Ng.y)"
+    r"\s*[:\uff1a]?\s*(?P<value>\d{4}[./-]\d{1,2}[./-]\d{1,2}(?:\s+\d{1,2}:\d{2})?)",
+    re.IGNORECASE,
+)
 
-def _is_detail_path(path: str) -> bool:
-    path_lower = path.casefold().rstrip("/")
+
+def _is_detail_url(url: str) -> bool:
+    parsed = urlparse(url)
+    path_lower = parsed.path.casefold().rstrip("/")
+    query = parse_qs(parsed.query)
     if "/news/articles/" in path_lower:
         return not path_lower.endswith("/news/articles")
+    if path_lower.endswith("/article/view.do"):
+        return bool(query.get("articleKey"))
+    if path_lower.endswith("/cms/board/board.do"):
+        return (query.get("mode") or [""])[0].casefold() == "view" and bool(
+            query.get("board_seq")
+        )
+    if path_lower.endswith("/bordcontdetail.do"):
+        return bool(query.get("pst_no"))
     filename = path_lower.rsplit("/", 1)[-1]
-    return filename.endswith(".html") and not filename.startswith("index")
+    return filename.endswith((".html", ".jhtml")) and not filename.startswith(
+        "index"
+    )
 
 
 def _spans_overlap(left: tuple[int, int], right: tuple[int, int]) -> bool:
