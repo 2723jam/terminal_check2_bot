@@ -65,6 +65,15 @@ class JsonStateStore:
         state["last_scheduled_slot"] = value
         self.save(state)
 
+    def get_bound_chat_id(self) -> str | None:
+        value = self.load().get("bound_chat_id")
+        return str(value) if value is not None else None
+
+    def set_bound_chat_id(self, value: str) -> None:
+        state = self.load()
+        state["bound_chat_id"] = value
+        self.save(state)
+
     @staticmethod
     def _default_state() -> dict[str, Any]:
         return {
@@ -78,6 +87,7 @@ class JsonStateStore:
             "recent_failures": [],
             "last_failure_count": 0,
             "last_scheduled_slot": None,
+            "bound_chat_id": None,
         }
 
 

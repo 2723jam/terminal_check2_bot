@@ -33,6 +33,14 @@ Copy-Item .env.example .env
 3. 알림을 받을 개인/그룹/채널의 chat id를 `TELEGRAM_CHAT_ID`에 넣습니다.
 4. 그룹이나 채널에 넣는 경우 봇을 초대하고 메시지 전송 권한을 부여합니다.
 
+For a private chat, open
+[terminal_check2_bot](https://t.me/terminal_check2_bot?start=terminal_check2_bot)
+and press START once. The dedicated start payload is the only update accepted
+for automatic chat binding, and the discovered chat id is persisted in this
+bot's state file. Every scheduled run also verifies that the token belongs to
+`@terminal_check2_bot`; a Telegram delivery failure now fails GitHub Actions
+instead of appearing as a successful run.
+
 ## 환경변수
 
 - `BOT_NAME`: 기본값 `terminal_check2_bot`
