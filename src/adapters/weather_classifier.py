@@ -50,10 +50,14 @@ class WeatherClassifier:
         )
 
     def classify_weather(self, text: str) -> Classification | None:
-        match = self._best_keyword_match(text, self.weather_keywords)
-        if not match:
-            return None
-        detail, keyword = match
+        typhoon_keyword = self._best_list_match(text, self.weather_keywords.get("typhoon", []))
+        if typhoon_keyword:
+            detail, keyword = "typhoon", typhoon_keyword
+        else:
+            match = self._best_keyword_match(text, self.weather_keywords)
+            if not match:
+                return None
+            detail, keyword = match
         display = f"기상악화({WEATHER_DETAIL_KO.get(detail, '상세불명')})"
         return Classification("weather", detail, display, keyword)
 

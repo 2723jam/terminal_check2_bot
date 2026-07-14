@@ -37,3 +37,18 @@ def test_military_and_navigation_control_keywords() -> None:
         assert result is not None
         assert result.category == "military"
         assert result.display_ko == "군사훈련"
+
+
+def test_english_operator_weather_keywords() -> None:
+    c = classifier()
+    cases = [
+        ("Port closure due to Typhoon Bavi", "typhoon"),
+        ("Typhoon Bavi brings torrential rain to a closed port", "typhoon"),
+        ("Terminal suspended after torrential rain", "heavy_rain"),
+        ("Vessel operations suspended in dense fog", "fog"),
+        ("Port closed because of rough seas", "marine_bad_weather"),
+    ]
+    for text, expected in cases:
+        result = c.classify_weather(text)
+        assert result is not None
+        assert result.detail == expected

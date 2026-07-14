@@ -145,6 +145,11 @@ source_urls:
 
 실제 확인하지 못한 주소는 임의로 만들지 말고 `TODO:`로 남기세요. 어댑터는 `TODO:` 항목을 fetch하지 않습니다.
 
+Verified Shanghai/Ningbo feeds currently include Shanghai MSA, Shanghai
+Municipal Government port news, Zhejiang/Ningbo MSA notices, and Maersk's
+official advisories. Broad home/list pages are never treated as one notice;
+only selected detail pages are parsed as alert evidence.
+
 ## 중단 판단 원칙
 
 - 날씨 예보, 기상 관측, 혼잡 가능성만으로는 알림을 보내지 않습니다.
@@ -152,6 +157,8 @@ source_urls:
 - `WeatherClassifier`는 이미 확인된 중단 공지의 기상 세부 사유를 분류하는 보조 로직입니다.
 - 중국은 군사훈련, 실탄사격, 항행금지, 임시 해상통제, 항행경고 키워드를 별도로 체크합니다.
 - 특정 항구 fetch 실패는 전체 실패로 전파하지 않고 상태 저장소에 실패 정보로 남깁니다.
+- An open-ended detail notice is considered current for 36 hours from publication,
+  preventing an old closure article from being resent as a live incident.
 
 ## 기상 작업속도 우려
 

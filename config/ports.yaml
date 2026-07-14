@@ -83,6 +83,8 @@ ports:
     terminals: ["YANGSHAN", "WGQ", "SIPG"]
     source_urls:
       - "https://www.sh.msa.gov.cn/"
+      - "https://www.shanghai.gov.cn/nw4411/index.html"
+      - "https://www.maersk.com/news/category/advisories"
       - "TODO: https://www.msa.gov.cn/page/outter/weather.jsp returns 403 in GitHub Actions; replace with verified Shanghai notice URL"
     enabled: true
 
@@ -97,6 +99,8 @@ ports:
     source_urls:
       - "https://www.zj.msa.gov.cn/ZJ/wszw/bmcx/hsskcx/hxtg/"
       - "https://www.zj.msa.gov.cn/ZJ/wszw/bmcx/hsskcx/hxjg/"
+      - "https://www.zj.msa.gov.cn/NB/"
+      - "https://www.maersk.com/news/category/advisories"
     enabled: true
 
   - country: China
