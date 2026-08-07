@@ -78,3 +78,5 @@ def test_workflow_watchdog_crons_match_scheduler() -> None:
     assert workflow.count("- cron:") == 2
     for expression in github_actions_watchdog_crons():
         assert f'- cron: "{expression}"' in workflow
+    assert 'WEATHER_RISK_ENABLED: "false"' in workflow
+    assert "TERMINAL_CHECK2_WEATHER_RISK_ENABLED" not in workflow

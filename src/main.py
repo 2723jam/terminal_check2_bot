@@ -41,7 +41,7 @@ async def main() -> None:
         keywords_config_path=keywords_config,
         timeout_seconds=timeout_seconds,
         user_agent=user_agent,
-        weather_risk_enabled=env_bool("WEATHER_RISK_ENABLED", True),
+        weather_risk_enabled=False,
         weather_risk_horizon_hours=int(os.getenv("WEATHER_RISK_HOURS", "12")),
     )
     state_store = JsonStateStore(state_file)

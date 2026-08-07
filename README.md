@@ -1,6 +1,6 @@
 # terminal_check2_bot
 
-`terminal_check2_bot`는 주요 항구와 터미널의 작업 중단 또는 중단 예정 공지를 수집해 Telegram으로 한국어 알림을 보내는 봇입니다. 날씨 예보만으로 중단을 추론하지 않고, 항만/터미널/항만공사/해사국/운영사/공식 또는 준공식 공지에 작업 중단, 작업 제한, 폐쇄, 접안 중단, gate/yard/vessel operation suspended 같은 명시 근거가 있을 때만 발송합니다.
+`terminal_check2_bot`는 주요 항구와 터미널의 실제 작업 중단 또는 중단 예정 공지를 수집해 Telegram으로 한국어 알림을 보내는 봇입니다. 날씨 예보와 작업속도 우려는 발송하지 않으며, 공식 또는 준공식 공지에 작업 중단, 폐쇄, 접안 중단, gate/yard/vessel operation suspended 같은 명시 근거가 있을 때만 발송합니다.
 
 ## 대상 항구
 
@@ -33,13 +33,11 @@ Copy-Item .env.example .env
 3. 알림을 받을 개인/그룹/채널의 chat id를 `TELEGRAM_CHAT_ID`에 넣습니다.
 4. 그룹이나 채널에 넣는 경우 봇을 초대하고 메시지 전송 권한을 부여합니다.
 
-For a private chat, open
-[terminal_check2_bot](https://t.me/terminal_check2_bot?start=terminal_check2_bot)
-and press START once. The dedicated start payload is the only update accepted
-for automatic chat binding, and the discovered chat id is persisted in this
-bot's state file. Every scheduled run also verifies that the token belongs to
-`@terminal_check2_bot`; a Telegram delivery failure now fails GitHub Actions
-instead of appearing as a successful run.
+개인 채팅은 [terminal_check2_bot](https://t.me/terminal_check2_bot?start=terminal_check2_bot)을
+열고 START를 한 번 누릅니다. 일반 START와 전용 payload START를 모두 자동 연결에
+사용할 수 있으며, 발견한 숫자 chat id는 이 봇 전용 상태 파일에 저장됩니다.
+매 실행마다 token이 `@terminal_check2_bot` 소유인지 확인하므로 다른 봇과 섞이지
+않습니다. Telegram 발송 오류가 있어도 항구 수집과 이벤트 저장을 먼저 완료합니다.
 
 ## 환경변수
 
@@ -52,8 +50,8 @@ instead of appearing as a successful run.
 - `TIMEZONE`: 스케줄 기준 timezone, 기본값 `Asia/Seoul`
 - `SEND_EMPTY_REPORT`: true이면 이벤트가 없어도 빈 리포트 발송
 - `SEND_UNCHANGED_ALERTS`: false이면 직전 발송 내용과 같을 때 생략
-- `WEATHER_RISK_ENABLED`: true이면 공식 중단 공지와 별개로 기상 기반 작업속도 우려 알림 발송
-- `WEATHER_RISK_HOURS`: 기상 우려 확인 범위, 기본값 12시간
+- `WEATHER_RISK_ENABLED`: 호환성 항목이며 현재 실행 경로에서는 `false`로 고정
+- `WEATHER_RISK_HOURS`: 비활성 기상 모듈의 호환성 항목
 - `HTTP_TIMEOUT_SECONDS`: 출처 fetch timeout
 - `HTTP_USER_AGENT`: 공식 사이트 요청 User-Agent
 - `LOG_LEVEL`: 기본값 `INFO`
@@ -122,8 +120,8 @@ GitHub 저장소 화면에서:
 
 - `TERMINAL_CHECK2_SEND_EMPTY_REPORT`: 기본값 `false`
 - `TERMINAL_CHECK2_SEND_UNCHANGED_ALERTS`: 기본값 `false`
-- `TERMINAL_CHECK2_WEATHER_RISK_ENABLED`: 기본값 `true`
-- `TERMINAL_CHECK2_WEATHER_RISK_HOURS`: 기본값 `12`
+- 기상 우려 관련 Variable은 사용하지 않으며 실제 중단 공지만 발송합니다.
+
 
 GitHub Actions scheduled runs use two UTC watchdog ranges: `5,20,35,50 21-23 * * *` and `5,20,35,50 0-9 * * *` (06:05-18:50 KST). Because GitHub may delay cron jobs, the bot maps the actual start time to the current 09:05-18:05 KST slot, uses 19:00-21:59 as a grace period for the final 18:05 slot, and deduplicates with `last_scheduled_slot`. Pre-window runs exit without checking. `workflow_dispatch` and push runs execute immediately.
 
@@ -152,47 +150,27 @@ source_urls:
 ```
 
 Verified direct feeds include Incheon SCON/ICPA, PNIT/HPNT/BPT, YGPA,
-Shandong MSA, Shanghai Municipal Government, Zhejiang/Ningbo MSA,
-Maersk advisories, Saigon Newport ePort, and Hai Phong Port.
-Listing adapters follow detail pages; HTTP 202 and request-rejected challenge pages are recorded as source failures.
-Shenzhen MSA is currently anti-bot protected, so SHEKOU retains Maersk as a fallback.
-Tianjin also uses Maersk while a verified official navigational-warning URL remains TODO.
-official advisories. Broad home/list pages are never treated as one notice;
-only selected detail pages are parsed as alert evidence.
+Shandong MSA, Shanghai Municipal Government, Zhejiang/Ningbo MSA, Ningbo Port
+EDI, Maersk advisories, Saigon Newport ePort, and Hai Phong Port.
+The Ningbo EDI adapter reads its public list/detail API and publishes the public detail URL.
+Shenzhen MSA is anti-bot protected, so SHEKOU retains Maersk as a fallback.
+Tianjin uses Maersk while a verified official navigational-warning URL remains TODO.
+Broad home/list pages are never treated as one notice; only selected detail pages
+are parsed, and HTTP 202 or request-rejected pages are recorded as source failures.
 
 ## 중단 판단 원칙
 
 - 날씨 예보, 기상 관측, 혼잡 가능성만으로는 알림을 보내지 않습니다.
-- 공지 본문에 작업 중단/제한/폐쇄/접안 중단/gate 또는 yard 또는 vessel operation suspended 등 명시적 중단 근거가 있어야 합니다.
+- 공지 본문에 작업 중단/폐쇄/접안 중단/gate 또는 yard 또는 vessel operation suspended 등 명시적 중단 근거가 있어야 합니다.
+- 선택적 반출입 제한이나 일반 작업 제한만 있는 공지는 중단 이벤트에서 제외합니다.
 - `WeatherClassifier`는 이미 확인된 중단 공지의 기상 세부 사유를 분류하는 보조 로직입니다.
-- 중국은 군사훈련, 실탄사격, 항행금지, 임시 해상통제, 항행경고 키워드를 별도로 체크합니다.
+- 중국은 군사훈련, 실탄사격, 항행금지, 임시 해상통제를 체크하며 항행경고 문구만으로는 발송하지 않습니다.
 - 특정 항구 fetch 실패는 전체 실패로 전파하지 않고 상태 저장소에 실패 정보로 남깁니다.
-- An open-ended detail notice is considered current for 36 hours from publication,
-  preventing an old closure article from being resent as a live incident.
+- 종료 미정 공지는 최대 7일간 현재 이벤트로 유지하며, Ningbo EDI의 후속 전면 복구 공지가 나오면 즉시 해제합니다.
 
-## 기상 작업속도 우려
+## 기상 우려 알림 비활성화
 
-`WEATHER_RISK_ENABLED=true`이면 항구 좌표 기준 예보를 별도로 확인해 폭우, 강풍, 안개, 폭설, 해상악천후가 작업 속도에 영향을 줄 수 있는 시간대를 보냅니다. 이 알림은 공식 중단 공지로 처리하지 않으며 메시지 상단에 `[기상 작업속도 우려 - 실제 중단 공지 아님]`을 붙입니다.
-
-기본 임계값:
-
-- 폭우: 시간당 강수량 10mm 이상 또는 6시간 누적 25mm 이상
-- 강풍: 순간풍속 17m/s 이상
-- 해상악천후: 순간풍속 21m/s 이상 또는 뇌우 코드
-- 안개: 예보 weather code 45 또는 48
-- 폭설: 시간당 적설 2mm 이상
-
-예시:
-
-```text
-[기상 작업속도 우려 - 실제 중단 공지 아님]
-
-※ QINGDAO
-우려사유 : 폭우
-예상기간 : 26.05.29 13:00 ~ 26.05.29 19:00
-
-참고 : 공식 작업 중단 공지가 아닌 기상 기반 주의 알림입니다.
-```
+현재 배포는 기상 예보 기반 우려 알림을 생성하거나 발송하지 않습니다. `WeatherClassifier`는 공식 중단 공지에 명시된 태풍, 폭우, 강풍 등의 중단사유를 한국어로 분류할 때만 사용합니다.
 
 ## 한계사항
 

@@ -98,6 +98,7 @@ ports:
     aliases: ["NINGBO", "Ningbo", "宁波", "宁波舟山港", "寧波", "舟山港"]
     terminals: ["NBCT", "MSICT", "BLCT", "CMICT"]
     source_urls:
+      - "https://www.npedi.com/portal-api/index/content/list?categoryId=1&pageNum=1&pageSize=20"
       - "https://www.zj.msa.gov.cn/ZJ/wszw/bmcx/hsskcx/hxtg/"
       - "https://www.zj.msa.gov.cn/ZJ/wszw/bmcx/hsskcx/hxjg/"
       - "https://www.zj.msa.gov.cn/NB/"

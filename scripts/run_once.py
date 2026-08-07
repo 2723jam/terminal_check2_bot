@@ -66,7 +66,7 @@ async def main() -> None:
         keywords_config_path=keywords_config,
         timeout_seconds=float(os.getenv("HTTP_TIMEOUT_SECONDS", "20")),
         user_agent=os.getenv("HTTP_USER_AGENT"),
-        weather_risk_enabled=env_bool("WEATHER_RISK_ENABLED", True),
+        weather_risk_enabled=False,
         weather_risk_horizon_hours=int(os.getenv("WEATHER_RISK_HOURS", "12")),
     )
 

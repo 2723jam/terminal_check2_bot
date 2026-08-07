@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 from src.adapters.official_notice import (
@@ -9,6 +10,21 @@ from src.adapters.official_notice import (
     _is_stale_open_event,
 )
 from src.models import PortConfig, TerminalStatusEvent
+ACTUAL_MILITARY_CONTROL_KEYWORDS = (
+    "\u519b\u4e8b\u8bad\u7ec3",
+    "\u519b\u4e8b\u6d3b\u52a8",
+    "\u5b9e\u5f39\u5c04\u51fb",
+    "\u7981\u822a",
+    "\u7981\u9650\u822a",
+    "\u9650\u5236\u822a\u884c",
+    "\u4e34\u65f6\u7ba1\u5236",
+    "\u5b9e\u65bd\u4ea4\u901a\u7ba1\u5236",
+    "\u6d77\u4e0a\u6f14\u4e60",
+    "\u5c04\u51fb\u8bad\u7ec3",
+    "military exercise",
+    "live-fire drill",
+    "sea closure",
+)
 
 
 class ChinaMSAAdapter(OfficialNoticeAdapter):
@@ -16,7 +32,7 @@ class ChinaMSAAdapter(OfficialNoticeAdapter):
 
     Military drills, live-fire notices, navigation bans, and temporary sea controls
     are alertable for China even when they are not terminal-operator notices.
-    Weather wording still requires explicit operation suspension evidence.
+    Every alert requires explicit drill, control, closure, or suspension evidence.
     """
 
     adapter_name = "china_msa"
@@ -28,14 +44,20 @@ class ChinaMSAAdapter(OfficialNoticeAdapter):
 
         military = self.classifier.classify_military_or_navigation(text)
         weather = self.classifier.classify_weather(text)
-        operation_evidence = self._find_port_operation_evidence(port, text)
-        alias_hit = self._mentions_port_or_terminal(port, text)
+        source_implies_port = self._source_implies_port(port, source_url)
+        alias_hit = self._mentions_port_or_terminal(port, text) or source_implies_port
+        operation_evidence = self._find_port_operation_evidence(
+            port, text, source_implies_port=source_implies_port
+        )
+        actual_military_control = military and self._contains_any(
+            text, list(ACTUAL_MILITARY_CONTROL_KEYWORDS)
+        )
 
-        if military and alias_hit:
+        if actual_military_control and alias_hit:
             classification = military
             time_text = text
-        elif weather and operation_evidence and alias_hit:
-            classification = weather
+        elif operation_evidence and alias_hit:
+            classification = weather or self.classifier.classify_non_weather_reason(text)
             time_text = operation_evidence
         else:
             return []
@@ -65,7 +87,7 @@ class ChinaMSAAdapter(OfficialNoticeAdapter):
                 source_title=self._extract_title(html),
                 source_published_at=published_at,
                 raw_text=text[:4000],
-                confidence=0.9 if military else 0.86,
+                confidence=0.9 if classification.category == "military" else 0.86,
             )
         ]
 
@@ -77,7 +99,22 @@ class ChinaMSAAdapter(OfficialNoticeAdapter):
                 return True
         return False
 
-    def _find_port_operation_evidence(self, port: PortConfig, text: str) -> str | None:
+    @staticmethod
+    def _source_implies_port(port: PortConfig, source_url: str) -> bool:
+        host = urlparse(source_url).netloc.casefold()
+        return port.port_code == "NINGBO" and host in {
+            "npedi.com",
+            "www.npedi.com",
+        }
+
+
+    def _find_port_operation_evidence(
+        self,
+        port: PortConfig,
+        text: str,
+        *,
+        source_implies_port: bool = False,
+    ) -> str | None:
         folded = text.casefold()
         candidates: list[tuple[int, int, str]] = []
         for keyword in self.operation_stop_keywords:
@@ -96,6 +133,8 @@ class ChinaMSAAdapter(OfficialNoticeAdapter):
             sentence = self._sentence_around(text, index, index + len(keyword))
             if not self._sentence_has_port_scope(port, sentence):
                 continue
+            if source_implies_port:
+                return text
             start = max(0, index - 220)
             end = min(len(text), index + len(keyword) + 280)
             window = text[start:end]

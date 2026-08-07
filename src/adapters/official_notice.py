@@ -18,7 +18,27 @@ from src.models import PortConfig, TerminalStatusEvent
 
 MAX_DETAIL_LINKS = 20
 DETAIL_FETCH_CONCURRENCY = 4
-MAX_OPEN_EVENT_AGE = timedelta(hours=36)
+MAX_OPEN_EVENT_AGE = timedelta(days=7)
+NPEDI_HOSTS = {"npedi.com", "www.npedi.com"}
+NPEDI_LIST_PATH = "/portal-api/index/content/list"
+NPEDI_FULL_RECOVERY_KEYWORDS = (
+    "\u6062\u590d\u8fdb\u63d0\u7bb1\u4f5c\u4e1a",
+    "\u6062\u590d\u96c6\u88c5\u7bb1\u8fdb\u63d0\u4f5c\u4e1a",
+    "\u5168\u9762\u6062\u590d",
+    "\u89e3\u9664\u5c01\u6e2f",
+)
+NPEDI_OUTSIDE_NINGBO_MARKERS = (
+    "\u5609\u5174\u6e2f\u52a1",
+    "\u72b6\u5143\u5c99\u7801\u5934",
+    "\u91d1\u6d0b\u7801\u5934",
+    "\u53f0\u5dde\u6e2f\u52a1",
+)
+NON_STOP_RESTRICTION_KEYWORDS = {
+    "\uc791\uc5c5 \uc81c\ud55c",
+    "\uc791\uc5c5\uc81c\ud55c",
+    "\u4f5c\u4e1a\u53d7\u9650",
+    "h\u1ea1n ch\u1ebf khai th\u00e1c",
+}
 NOTICE_DETAIL_PATH_MARKERS = (
     "/hsskcx/hxtg/",
     "/hsskcx/hxjg/",
@@ -37,6 +57,7 @@ NOTICE_DETAIL_PATH_MARKERS = (
 )
 ARTICLE_BODY_SELECTORS = (
     ".inline-notice",
+    ".npedi-notice",
     "#ivs_content",
     ".p-section__article__body",
     ".article .view",
@@ -62,7 +83,12 @@ class OfficialNoticeAdapter(BaseAdapter):
         super().__init__(timeout_seconds=timeout_seconds, user_agent=user_agent)
         with open(keywords_config_path, "r", encoding="utf-8") as handle:
             payload = yaml.safe_load(handle) or {}
-        self.operation_stop_keywords: list[str] = payload.get("operation_stop_keywords", [])
+        configured_stop_keywords: list[str] = payload.get("operation_stop_keywords", [])
+        self.operation_stop_keywords = [
+            keyword
+            for keyword in configured_stop_keywords
+            if keyword not in NON_STOP_RESTRICTION_KEYWORDS
+        ]
         self.uncertain_end_keywords: list[str] = payload.get("uncertain_end_keywords", [])
         self.port_operation_context_keywords: list[str] = payload.get("port_operation_context_keywords", [])
         self.classifier = WeatherClassifier.from_yaml(keywords_config_path)
@@ -91,6 +117,9 @@ class OfficialNoticeAdapter(BaseAdapter):
         for source_url in self.usable_source_urls(port):
             try:
                 html = await self.fetch(source_url)
+                if self._is_npedi_feed(source_url):
+                    events.extend(await self._check_npedi_feed(port, source_url, html))
+                    continue
                 inline_notices = self._extract_inline_notice_documents(source_url, html)
                 if inline_notices:
                     for notice_html, notice_url in inline_notices:
@@ -132,6 +161,157 @@ class OfficialNoticeAdapter(BaseAdapter):
 
         results = await asyncio.gather(*(check_one(url) for url in detail_links))
         return [event for result in results for event in result]
+    async def _check_npedi_feed(
+        self,
+        port: PortConfig,
+        source_url: str,
+        payload_text: str,
+    ) -> list[TerminalStatusEvent]:
+        """Read Ningbo Port EDI's public operational-notice API.
+
+        The API is the authoritative data source behind npedi.com's public notice
+        page. Only fresh stop notices newer than the latest full recovery notice
+        are opened and parsed.
+        """
+        try:
+            payload = json.loads(payload_text)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("invalid Ningbo Port EDI list response") from exc
+
+        data = payload.get("data") if isinstance(payload, dict) else None
+        entries = data.get("list") if isinstance(data, dict) else None
+        if not isinstance(entries, list):
+            raise ValueError("Ningbo Port EDI list response has no data.list")
+
+        timezone = ZoneInfo(port.timezone)
+        now = datetime.now(timezone)
+        dated_entries: list[tuple[datetime, dict[str, object]]] = []
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            published_at = self._parse_npedi_datetime(entry.get("inputdate"), timezone)
+            if published_at is not None:
+                dated_entries.append((published_at, entry))
+
+        recovery_times = [
+            published_at
+            for published_at, entry in dated_entries
+            if self._is_npedi_full_recovery(entry)
+        ]
+        latest_recovery = max(recovery_times, default=None)
+        stop_entries = [
+            entry
+            for published_at, entry in sorted(
+                dated_entries,
+                reverse=True,
+                key=lambda item: item[0],
+            )
+            if now - published_at <= MAX_OPEN_EVENT_AGE
+            and (latest_recovery is None or published_at > latest_recovery)
+            and not self._is_npedi_full_recovery(entry)
+            and self._has_operation_stop_evidence(self._npedi_entry_text(entry))
+        ][:MAX_DETAIL_LINKS]
+
+        parsed_source = urlparse(source_url)
+        origin = f"{parsed_source.scheme}://{parsed_source.netloc}"
+        semaphore = asyncio.Semaphore(DETAIL_FETCH_CONCURRENCY)
+
+        async def check_one(entry: dict[str, object]) -> list[TerminalStatusEvent]:
+            content_id = str(entry.get("contentId") or "").strip()
+            if not content_id.isdigit():
+                return []
+            detail_api_url = f"{origin}/portal-api/index/content/{content_id}"
+            public_url = f"{origin}/contentDetail?contentId={content_id}"
+            try:
+                async with semaphore:
+                    detail_payload = await self.fetch(detail_api_url)
+                notice_html = self._npedi_detail_document(detail_payload)
+                return self.parse(port=port, html=notice_html, source_url=public_url)
+            except Exception as exc:  # noqa: BLE001 - keep checking other notices.
+                self.record_failure(port.port_code, detail_api_url, exc)
+                return []
+
+        results = await asyncio.gather(*(check_one(entry) for entry in stop_entries))
+        return [event for result in results for event in result]
+
+    @staticmethod
+    def _is_npedi_feed(source_url: str) -> bool:
+        parsed = urlparse(source_url)
+        return parsed.netloc.casefold() in NPEDI_HOSTS and parsed.path == NPEDI_LIST_PATH
+
+    @staticmethod
+    def _parse_npedi_datetime(value: object, timezone: ZoneInfo) -> datetime | None:
+        if not value:
+            return None
+        try:
+            parsed = date_parser.parse(str(value))
+        except (TypeError, ValueError, OverflowError):
+            return None
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone)
+        return parsed.astimezone(timezone)
+
+    @staticmethod
+    def _npedi_entry_text(entry: dict[str, object]) -> str:
+        return " ".join(
+            str(entry.get(field) or "")
+            for field in ("title", "description", "keywords")
+        )
+
+    @classmethod
+    def _is_npedi_full_recovery(cls, entry: dict[str, object]) -> bool:
+        folded = cls._npedi_entry_text(entry).casefold()
+        return any(
+            keyword.casefold() in folded
+            for keyword in NPEDI_FULL_RECOVERY_KEYWORDS
+        )
+
+    @staticmethod
+    def _npedi_detail_document(payload_text: str) -> str:
+        try:
+            payload = json.loads(payload_text)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("invalid Ningbo Port EDI detail response") from exc
+        data = payload.get("data") if isinstance(payload, dict) else None
+        if not isinstance(data, dict):
+            raise ValueError("Ningbo Port EDI detail response has no data")
+
+        title = str(data.get("title") or "").strip()
+        published_at = str(data.get("inputdate") or "").strip()
+        content = str(data.get("content") or data.get("description") or "").strip()
+        if not title or not content:
+            raise ValueError("Ningbo Port EDI detail response is incomplete")
+
+        soup = BeautifulSoup(content, "lxml")
+        paragraphs = [
+            re.sub(r"\s+", " ", node.get_text(" ", strip=True)).strip()
+            for node in soup.find_all(["p", "li"])
+        ]
+        paragraphs = [paragraph for paragraph in paragraphs if paragraph]
+        if not paragraphs:
+            paragraphs = [
+                re.sub(r"\s+", " ", soup.get_text(" ", strip=True)).strip()
+            ]
+
+        ningbo_paragraphs: list[str] = []
+        for paragraph in paragraphs:
+            if any(marker in paragraph for marker in NPEDI_OUTSIDE_NINGBO_MARKERS):
+                break
+            ningbo_paragraphs.append(paragraph)
+        body = " ".join(ningbo_paragraphs).strip()
+        if not body:
+            raise ValueError("Ningbo Port EDI detail has no Ningbo operation text")
+
+        return (
+            "<html><head>"
+            f'<meta property="og:title" content="{html_lib.escape(title, quote=True)}">'
+            f'<meta property="article:published_time" '
+            f'content="{html_lib.escape(published_at, quote=True)}">'
+            "</head><body>"
+            f'<article class="npedi-notice">{html_lib.escape(body)}</article>'
+            "</body></html>"
+        )
+
 
     def parse(self, port: PortConfig, html: str, source_url: str) -> list[TerminalStatusEvent]:
         text = self._extract_notice_text(html)
@@ -580,7 +760,8 @@ class OfficialNoticeAdapter(BaseAdapter):
         month = int(match.group("month"))
         day = int(match.group("day"))
         hour_text = match.group("hour")
-        minute_text = match.group("minute")
+        groups = match.groupdict()
+        minute_text = groups.get("minute") or groups.get("minute_colon")
 
         if not year_text:
             year = reference.year
@@ -668,7 +849,8 @@ _NUMERIC_DATE_PATTERN = re.compile(
 )
 _CHINESE_DATE_PATTERN = re.compile(
     r"(?:(?P<year>\d{2,4})\u5e74)?(?P<month>\d{1,2})\u6708(?P<day>\d{1,2})\u65e5"
-    r"(?:\s*(?P<hour>\d{1,2})(?:\u65f6|\u70b9)(?:(?P<minute>\d{1,2})\u5206?)?)?"
+    r"(?:\s*(?P<hour>\d{1,2})(?:(?:\u65f6|\u70b9)(?:(?P<minute>\d{1,2})\u5206?)?"
+    r"|[:\uff1a](?P<minute_colon>\d{2})))?"
 )
 _CHINESE_TIME_ONLY_PATTERN = re.compile(
     r"(?<![\u6708\u65e5\d])(?P<hour>\d{1,2})(?:\u65f6|\u70b9)(?:(?P<minute>\d{1,2})\u5206?)?"

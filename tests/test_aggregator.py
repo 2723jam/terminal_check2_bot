@@ -1,4 +1,5 @@
 import asyncio
+import json
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -344,9 +345,9 @@ def test_open_ended_notice_expires_after_freshness_window() -> None:
     published = datetime(2026, 7, 10, 10, 0, tzinfo=timezone)
 
     assert _is_stale_open_event(
-        published, None, published + timedelta(hours=36, seconds=1)
+        published, None, published + timedelta(days=7, seconds=1)
     )
-    assert not _is_stale_open_event(published, None, published + timedelta(hours=35))
+    assert not _is_stale_open_event(published, None, published + timedelta(days=6, hours=23))
 
 
 def test_terminal_notice_lists_generate_verified_detail_urls() -> None:
@@ -588,3 +589,182 @@ def test_qingdao_explicit_navigation_restriction_is_alert_evidence() -> None:
 
     assert len(events) == 1
     assert events[0].reason_detail == "typhoon"
+
+
+def make_ningbo_port(source_url: str) -> PortConfig:
+    return PortConfig(
+        country="China",
+        port_code="NINGBO",
+        display_name="NINGBO",
+        timezone="Asia/Shanghai",
+        aliases=["NINGBO", "Ningbo", "\u5b81\u6ce2", "\u5b81\u6ce2\u821f\u5c71\u6e2f"],
+        terminals=["NBCT", "MSICT", "BLCT", "CMICT"],
+        source_urls=[source_url],
+    )
+
+
+@pytest.mark.asyncio
+async def test_npedi_feed_parses_current_typhoon_suspension(monkeypatch) -> None:
+    source_url = (
+        "https://www.npedi.com/portal-api/index/content/list"
+        "?categoryId=1&pageNum=1&pageSize=20"
+    )
+    port = make_ningbo_port(source_url)
+    adapter = ChinaMSAAdapter("config/keywords.yaml")
+    timezone = ZoneInfo("Asia/Shanghai")
+    now = datetime.now(timezone).replace(second=0, microsecond=0)
+    published = now - timedelta(hours=1)
+    planned_start = now + timedelta(hours=3)
+    content_id = 59901
+
+    list_payload = {
+        "code": 200,
+        "data": {
+            "list": [
+                {
+                    "contentId": content_id,
+                    "inputdate": published.strftime("%Y-%m-%d %H:%M:%S"),
+                    "title": (
+                        "\u5173\u4e8e\u53f0\u98ce\u201c\u767d\u6d77\u8c5a\u201d"
+                        "\u5404\u6e2f\u533a\u8fdb\u63d0\u6682\u505c\u4f5c\u4e1a"
+                        "\u7684\u901a\u77e5"
+                    ),
+                    "description": "\u9632\u53f0\u5c01\u6e2f",
+                }
+            ]
+        },
+    }
+    detail_payload = {
+        "code": 200,
+        "data": {
+            "contentId": content_id,
+            "inputdate": published.strftime("%Y-%m-%d %H:%M:%S"),
+            "title": list_payload["data"]["list"][0]["title"],
+            "content": (
+                "<p>\u53d7\u7b2c13\u53f7\u53f0\u98ce\u5f71\u54cd\uff0c"
+                "\u90e8\u5206\u7801\u5934\u8ba1\u5212\u6682\u505c"
+                "\u96c6\u88c5\u7bb1\u8fdb\u63d0\u4f5c\u4e1a\uff0c"
+                "\u9632\u53f0\u5c01\u6e2f\uff0c"
+                "\u6062\u590d\u65f6\u95f4\u53e6\u884c\u901a\u77e5\u3002</p>"
+                f"<p>\u5317\u4e00\u96c6\u53f8\uff1a{planned_start.month}"
+                f"\u6708{planned_start.day}\u65e5{planned_start:%H:%M}"
+                "\u5f00\u59cb\u6682\u505c\u7a7a\u7bb1\u8fdb\u63d0\u7bb1"
+                "\u4f5c\u4e1a\uff1b</p>"
+                "<p>\u5609\u5174\u6e2f\u52a1\uff1a1\u67081\u65e500:00"
+                "\u5f00\u59cb\u6682\u505c\u4f5c\u4e1a\uff1b</p>"
+            ),
+        },
+    }
+
+    async def fake_fetch(url: str) -> str:
+        if url == source_url:
+            return json.dumps(list_payload)
+        if url.endswith(f"/{content_id}"):
+            return json.dumps(detail_payload)
+        raise AssertionError(f"unexpected URL: {url}")
+
+    monkeypatch.setattr(adapter, "fetch", fake_fetch)
+
+    events = await adapter.check(port)
+
+    assert len(events) == 1
+    event = events[0]
+    assert event.port_code == "NINGBO"
+    assert event.terminal_name is None
+    assert event.status == "planned"
+    assert event.reason_detail == "typhoon"
+    assert event.start_time == planned_start
+    assert event.end_time is None
+    assert event.end_time_uncertain is True
+    assert event.source_url == (
+        "https://www.npedi.com/contentDetail?contentId=59901"
+    )
+    assert "\u5609\u5174\u6e2f\u52a1" not in event.raw_text
+
+
+@pytest.mark.asyncio
+async def test_npedi_full_recovery_suppresses_older_stop_notice(monkeypatch) -> None:
+    source_url = (
+        "https://www.npedi.com/portal-api/index/content/list"
+        "?categoryId=1&pageNum=1&pageSize=20"
+    )
+    port = make_ningbo_port(source_url)
+    adapter = ChinaMSAAdapter("config/keywords.yaml")
+    now = datetime.now(ZoneInfo("Asia/Shanghai")).replace(microsecond=0)
+    payload = {
+        "code": 200,
+        "data": {
+            "list": [
+                {
+                    "contentId": 2,
+                    "inputdate": (now - timedelta(hours=1)).strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    ),
+                    "title": (
+                        "\u5173\u4e8e\u6062\u590d\u8fdb\u63d0\u7bb1"
+                        "\u4f5c\u4e1a\u7684\u901a\u77e5"
+                    ),
+                },
+                {
+                    "contentId": 1,
+                    "inputdate": (now - timedelta(hours=2)).strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    ),
+                    "title": (
+                        "\u5173\u4e8e\u53f0\u98ce\u5404\u6e2f\u533a"
+                        "\u6682\u505c\u4f5c\u4e1a\u7684\u901a\u77e5"
+                    ),
+                },
+            ]
+        },
+    }
+
+    async def fake_fetch(url: str) -> str:
+        assert url == source_url
+        return json.dumps(payload)
+
+    monkeypatch.setattr(adapter, "fetch", fake_fetch)
+
+    assert await adapter.check(port) == []
+
+
+def test_selective_operation_restriction_is_not_a_stop_event() -> None:
+    port = PortConfig(
+        country="Korea",
+        port_code="INCHEON",
+        display_name="INCHEON",
+        timezone="Asia/Seoul",
+        aliases=["INCHEON"],
+        terminals=["E1CT"],
+        source_urls=[],
+    )
+    adapter = OfficialNoticeAdapter("config/keywords.yaml")
+    html = (
+        "<html><body><div id='board_view'>"
+        "E1CT EMPTY \ubc18\ucd9c\uc785 \uc81c\ud55c \uc548\ub0b4. "
+        "\ud2b9\uc815 \uc120\uc0ac \uacf5\ucee8 \uc791\uc5c5\uc81c\ud55c."
+        "</div></body></html>"
+    )
+
+    assert adapter.parse(port, html, "https://example.com/notice") == []
+
+
+def test_bare_navigation_warning_is_not_an_actual_control_event() -> None:
+    port = PortConfig(
+        country="China",
+        port_code="QINGDAO",
+        display_name="QINGDAO",
+        timezone="Asia/Shanghai",
+        aliases=["QINGDAO", "\u9752\u5c9b", "\u9752\u5c9b\u6e2f"],
+        terminals=[],
+        source_urls=[],
+    )
+    adapter = ChinaMSAAdapter("config/keywords.yaml")
+    html = (
+        "<html><body>"
+        "\u9752\u5c9b\u6d77\u4e8b\u5c40\u53d1\u5e03\u822a\u884c"
+        "\u8b66\u544a\uff0c\u8bf7\u8239\u8236\u6ce8\u610f\u5b89\u5168\u3002"
+        "</body></html>"
+    )
+
+    assert adapter.parse(port, html, "https://www.sd.msa.gov.cn/notice") == []

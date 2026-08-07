@@ -9,7 +9,7 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 
 from src import BOT_NAME
 from src.aggregator import PortStatusAggregator
-from src.message_formatter import EMPTY_REPORT, format_events, format_weather_risks, message_hash, split_telegram_message
+from src.message_formatter import EMPTY_REPORT, format_events, message_hash, split_telegram_message
 from src.models import PortConfig
 from src.state_store import JsonStateStore
 
@@ -50,7 +50,7 @@ class TerminalCheckTelegramBot:
         chat = update.effective_chat
         if not chat:
             return
-        if chat.type != "private" or context.args != [BOT_NAME]:
+        if chat.type != "private" or context.args not in ([], [BOT_NAME]):
             await chat.send_message(
                 "\uc544\ub798 \ub9c1\ud06c\ub97c \uc5f4\uace0 START\ub97c \ub20c\ub7ec "
                 f"\uc5f0\uacb0\ud558\uc138\uc694.\n{BINDING_LINK}"
@@ -103,29 +103,28 @@ class TerminalCheckTelegramBot:
 
     async def _check_and_send(self, reply_context: Update | None, force_empty: bool) -> None:
         try:
-            if reply_context is None:
-                await self.validate_delivery_target()
             result = await self.aggregator.collect()
             self.state_store.record_failures(result.failures)
-            message_parts: list[str] = []
-            if result.events:
-                message_parts.append(format_events(result.events, self.ports))
+            self.state_store.record_events(result.events)
+            self.state_store.record_weather_risks([])
             if result.weather_risks:
-                message_parts.append(format_weather_risks(result.weather_risks, self.ports))
-            message = "\n\n".join(part for part in message_parts if part)
+                logger.warning(
+                    "ignored {} weather-risk records in actual-suspension-only mode",
+                    len(result.weather_risks),
+                )
+
+            message = format_events(result.events, self.ports) if result.events else ""
             should_send_empty = self.settings.send_empty_report or force_empty
             if not message and should_send_empty:
                 message = EMPTY_REPORT
             elif not message:
                 self.state_store.update_run(success=True)
-                self.state_store.record_events([])
-                self.state_store.record_weather_risks([])
                 return
 
             current_hash = message_hash(message)
             if (
                 not self.settings.send_unchanged_alerts
-                and (result.events or result.weather_risks)
+                and result.events
                 and current_hash == self.state_store.get_last_message_hash()
             ):
                 logger.info("skip unchanged alert")
@@ -134,8 +133,6 @@ class TerminalCheckTelegramBot:
 
             await self._send_message(message, reply_context)
             self.state_store.set_last_message_hash(current_hash)
-            self.state_store.record_events(result.events)
-            self.state_store.record_weather_risks(result.weather_risks)
             self.state_store.update_run(success=True)
         except Exception as exc:  # noqa: BLE001 - report and persist bot-level failure.
             logger.exception("check failed")
@@ -220,6 +217,8 @@ def _binding_chat_id_from_updates(
 ) -> str | None:
     username = bot_username.lstrip("@")
     allowed_commands = {
+        "/start",
+        f"/start@{username}".casefold(),
         f"/start {BOT_NAME}".casefold(),
         f"/start@{username} {BOT_NAME}".casefold(),
     }
