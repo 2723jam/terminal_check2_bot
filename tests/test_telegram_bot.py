@@ -79,6 +79,29 @@ async def test_scheduled_failure_is_raised_for_github_actions(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_empty_scheduled_check_consumes_start_binding(tmp_path) -> None:
+    class EmptyAggregator:
+        async def collect(self) -> AggregationResult:
+            return AggregationResult(events=[])
+
+    store = JsonStateStore(str(tmp_path / "state.json"))
+    bot = TerminalCheckTelegramBot(
+        settings=TelegramBotSettings(token="123:test", chat_id="2723jam"),
+        aggregator=EmptyAggregator(),
+        state_store=store,
+        ports=[],
+    )
+    bot._try_bind_delivery_target = AsyncMock(return_value="333")
+
+    await bot._check_and_send(reply_context=None, force_empty=False)
+
+    bot._try_bind_delivery_target.assert_awaited_once_with()
+    state = store.load()
+    assert state["last_success"] is True
+    assert state["recent_events"] == []
+
+
+@pytest.mark.asyncio
 async def test_event_is_persisted_before_telegram_delivery_validation(tmp_path) -> None:
     timezone = ZoneInfo("Asia/Shanghai")
     event = TerminalStatusEvent(

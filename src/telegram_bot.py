@@ -118,6 +118,8 @@ class TerminalCheckTelegramBot:
             if not message and should_send_empty:
                 message = EMPTY_REPORT
             elif not message:
+                if reply_context is None:
+                    await self._try_bind_delivery_target()
                 self.state_store.update_run(success=True)
                 return
 
@@ -128,6 +130,8 @@ class TerminalCheckTelegramBot:
                 and current_hash == self.state_store.get_last_message_hash()
             ):
                 logger.info("skip unchanged alert")
+                if reply_context is None:
+                    await self._try_bind_delivery_target()
                 self.state_store.update_run(success=True)
                 return
 
@@ -186,6 +190,16 @@ class TerminalCheckTelegramBot:
         self._delivery_chat_id = fallback_chat_id
         logger.info("terminal_check2_bot delivery chat bound from dedicated START command")
         return fallback_chat_id
+
+    async def _try_bind_delivery_target(self) -> str | None:
+        try:
+            return await self.validate_delivery_target()
+        except (BadRequest, Forbidden) as exc:
+            logger.warning(
+                "Telegram delivery chat is not bound yet: {}",
+                type(exc).__name__,
+            )
+            return None
 
     async def _assert_bot_identity(self) -> None:
         bot_user = await self.application.bot.get_me()
