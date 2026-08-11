@@ -97,6 +97,14 @@ async def main() -> None:
         f"last_failure_count={state.get('last_failure_count', 0)} "
         f"last_scheduled_slot={state.get('last_scheduled_slot') or '-'}"
     )
+    for failure in state.get("recent_failures") or []:
+        port_code = str(failure.get("port_code") or "UNKNOWN")
+        source_url = str(failure.get("source_url") or "-")
+        error = " ".join(str(failure.get("error") or "unknown error").split())
+        print(
+            "Source failure. "
+            f"port={port_code} source={source_url} error={error[:240]}"
+        )
 
 
 if __name__ == "__main__":
